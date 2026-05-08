@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RoleBase Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0e0f14; --surface: #161820; --surface2: #1e2028; --border: #2a2d3a;
+    --accent: #6c63ff; --accent2: #00d4aa; --danger: #ff4d6d; --warn: #ffb347;
+    --text: #e8eaf0; --text-muted: #7a7f9a; --radius: 12px; --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .login-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: radial-gradient(ellipse at 30% 40%, #1a1060 0%, transparent 60%), radial-gradient(ellipse at 70% 80%, #002e24 0%, transparent 55%), var(--bg); }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 48px 40px; width: 400px; box-shadow: var(--shadow); }
+  .login-logo { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+  .login-sub { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; }
+  .form-group { margin-bottom: 18px; }
+  .form-group label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+  .form-control { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 11px 14px; color: var(--text); font-size: 14px; font-family: inherit; transition: border-color .2s; outline: none; }
+  .form-control:focus { border-color: var(--accent); }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all .2s; font-family: inherit; }
+  .btn-primary { background: var(--accent); color: #fff; } .btn-primary:hover { background: #7d75ff; transform: translateY(-1px); }
+  .btn-danger { background: var(--danger); color: #fff; } .btn-danger:hover { background: #ff6b84; }
+  .btn-success { background: var(--accent2); color: #0e0f14; } .btn-success:hover { background: #00e8bb; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); } .btn-ghost:hover { background: var(--border); }
+  .btn-warn { background: rgba(255,179,71,.15); color: var(--warn); border: 1px solid rgba(255,179,71,.3); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; } .btn-full { width: 100%; justify-content: center; }
+  .error-msg { background: rgba(255,77,109,.12); border: 1px solid rgba(255,77,109,.3); border-radius: 8px; padding: 10px 14px; color: var(--danger); font-size: 13px; margin-bottom: 14px; }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 10; }
+  .sidebar-logo { padding: 24px 20px 20px; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); }
+  .sidebar-user { padding: 16px 20px; border-bottom: 1px solid var(--border); display:flex; align-items:center; gap:10px; }
+  .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink:0; }
+  .user-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .role-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; margin-top:3px; }
+  .role-super_admin { background: rgba(108,99,255,.2); color: var(--accent); }
+  .role-admin { background: rgba(0,212,170,.2); color: var(--accent2); }
+  .role-member { background: rgba(255,179,71,.2); color: var(--warn); }
+  .sidebar-nav { flex: 1; padding: 12px; overflow-y: auto; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--text-muted); transition: all .2s; margin-bottom: 2px; }
+  .nav-item:hover, .nav-item.active { background: rgba(108,99,255,.12); color: var(--text); }
+  .nav-item.active { color: var(--accent); font-weight: 500; }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+  .sidebar-footer { padding: 16px; border-top: 1px solid var(--border); }
+  .main { margin-left: 240px; flex: 1; padding: 32px; }
+  .page-header { margin-bottom: 28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+  .page-title { font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700; }
+  .page-sub { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .stat-label { font-size: 12px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: .6px; }
+  .stat-value { font-size: 32px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; margin-top: 8px; }
+  .stat-accent { color: var(--accent); } .stat-green { color: var(--accent2); } .stat-warn { color: var(--warn); }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+  td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid rgba(42,45,58,.5); }
+  tr:last-child td { border-bottom: none; } tr:hover td { background: rgba(255,255,255,.02); }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; width: 480px; max-width: 96vw; box-shadow: var(--shadow); animation: modalIn .2s ease; max-height:90vh; overflow-y:auto; }
+  @keyframes modalIn { from { opacity: 0; transform: scale(.95) translateY(-10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; }
+  .modal-close { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; }
+  .modal-close:hover { color: var(--text); }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+  .empty-state { text-align: center; padding: 48px; color: var(--text-muted); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid rgba(255,255,255,.2); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; font-size: 13px; z-index: 999; animation: toastIn .3s ease; box-shadow: var(--shadow); }
+  .toast.success { border-color: var(--accent2); color: var(--accent2); }
+  .toast.error { border-color: var(--danger); color: var(--danger); }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .info-box { background: rgba(108,99,255,.08); border: 1px solid rgba(108,99,255,.2); border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; font-size: 13px; color: var(--text-muted); }
+  .info-box strong { color: var(--text); }
+  select.form-control option { background: var(--surface2); }
+  .member-dashboard { display:grid; gap:20px; }
+  .member-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; }
+  .member-card-title { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing:.6px; margin-bottom:8px; }
+  .member-card-value { font-size: 22px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- LOGIN -->
+<div v-if="!auth.user" class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">⬡ RoleBase</div>
+    <div class="login-sub">Role-based dashboard system</div>
+    <div class="error-msg" v-if="auth.error">{{ auth.error }}</div>
+    <div class="form-group">
+      <label>Username</label>
+      <input class="form-control" v-model="loginForm.username" @keyup.enter="login" placeholder="Enter username"/>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input class="form-control" type="password" v-model="loginForm.password" @keyup.enter="login" placeholder="Enter password"/>
+    </div>
+    <button class="btn btn-primary btn-full" @click="login" :disabled="auth.loading">
+      <span v-if="auth.loading" class="spinner"></span>
+      <span v-else>Sign In</span>
+    </button>
+    <div style="margin-top:16px;font-size:12px;color:var(--text-muted);text-align:center;">
+      superadmin / Admin@1234 &nbsp;|&nbsp; admin_tech / Admin@1234 &nbsp;|&nbsp; john_member / Admin@1234
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD LAYOUT -->
+<div v-else class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo">⬡ RoleBase</div>
+    <div class="sidebar-user">
+      <div class="user-avatar">{{ auth.user.username[0].toUpperCase() }}</div>
+      <div>
+        <div class="user-name">{{ auth.user.username }}</div>
+        <span class="role-badge" :class="'role-' + auth.user.role">{{ formatRole(auth.user.role) }}</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item" :class="{active: page==='dashboard'}" @click="page='dashboard'">
+        <span class="nav-icon">📊</span> Dashboard
+      </div>
+      <div class="nav-item" :class="{active: page==='organizations'}" @click="goOrgs" v-if="isSuperAdmin || isAdmin">
+        <span class="nav-icon">🏢</span> {{ isSuperAdmin ? 'Organizations' : 'My Organization' }}
+      </div>
+      <div class="nav-item" :class="{active: page==='users'}" @click="goUsers" v-if="isSuperAdmin || isAdmin">
+        <span class="nav-icon">👥</span> {{ isSuperAdmin ? 'All Users' : 'My Members' }}
+      </div>
+      <div class="nav-item" :class="{active: page==='profile'}" @click="page='profile'">
+        <span class="nav-icon">👤</span> My Profile
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn btn-ghost btn-full btn-sm" @click="logout">Sign Out</button>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ═══ SUPER ADMIN & ADMIN DASHBOARD ═══ -->
+    <div v-if="page==='dashboard' && (isSuperAdmin || isAdmin)">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Welcome, {{ auth.user.username }} 👋</div>
+          <div class="page-sub">{{ isSuperAdmin ? 'Super Admin — Full system control' : 'Admin — Manage your organization' }}</div>
+        </div>
+      </div>
+      <div class="stat-grid" v-if="stats">
+        <div class="stat-card" v-if="isSuperAdmin">
+          <div class="stat-label">Organizations</div>
+          <div class="stat-value stat-accent">{{ stats.total_organizations }}</div>
+        </div>
+        <div class="stat-card" v-if="isSuperAdmin">
+          <div class="stat-label">Total Users</div>
+          <div class="stat-value stat-green">{{ stats.total_users }}</div>
+        </div>
+        <div class="stat-card" v-if="isSuperAdmin">
+          <div class="stat-label">Admins</div>
+          <div class="stat-value stat-warn">{{ stats.total_admins }}</div>
+        </div>
+        <div class="stat-card" v-if="isSuperAdmin">
+          <div class="stat-label">Members</div>
+          <div class="stat-value">{{ stats.total_members }}</div>
+        </div>
+        <div class="stat-card" v-if="isAdmin && !isSuperAdmin">
+          <div class="stat-label">My Organization</div>
+          <div class="stat-value" style="font-size:18px;margin-top:12px;">{{ stats.organization || 'None' }}</div>
+        </div>
+        <div class="stat-card" v-if="isAdmin && !isSuperAdmin">
+          <div class="stat-label">Total Members</div>
+          <div class="stat-value stat-green">{{ stats.total_members }}</div>
+        </div>
+        <div class="stat-card" v-if="isAdmin && !isSuperAdmin">
+          <div class="stat-label">Admins in Org</div>
+          <div class="stat-value stat-warn">{{ stats.admins_in_org }}</div>
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-size:15px;font-weight:600;margin-bottom:16px;">Quick Actions</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" @click="openModal('createOrg')" v-if="isSuperAdmin">+ New Organization</button>
+          <button class="btn btn-success" @click="openModal('createUser')" v-if="isSuperAdmin">+ Create User</button>
+          <button class="btn btn-ghost" @click="goOrgs">{{ isSuperAdmin ? 'Manage Organizations' : 'View My Organization' }}</button>
+          <button class="btn btn-ghost" @click="goUsers">{{ isSuperAdmin ? 'Manage All Users' : 'Manage My Members' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ MEMBER DASHBOARD ═══ -->
+    <div v-if="page==='dashboard' && isMember">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Welcome, {{ auth.user.username }} 👋</div>
+          <div class="page-sub">Member Dashboard</div>
+        </div>
+      </div>
+      <div class="member-dashboard">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;">
+          <div class="member-card">
+            <div class="member-card-title">Your Role</div>
+            <div class="member-card-value">
+              <span class="role-badge role-member" style="font-size:14px;padding:6px 14px;">Member</span>
+            </div>
+          </div>
+          <div class="member-card">
+            <div class="member-card-title">Organization</div>
+            <div class="member-card-value" style="font-size:18px;">{{ auth.user.organization_name || 'Not Assigned' }}</div>
+          </div>
+          <div class="member-card">
+            <div class="member-card-title">Account Status</div>
+            <div class="member-card-value" style="color:var(--accent2);font-size:18px;">Active ✓</div>
+          </div>
+        </div>
+        <div class="card">
+          <div style="font-size:15px;font-weight:600;margin-bottom:8px;">Your Account Info</div>
+          <div style="color:var(--text-muted);font-size:13px;line-height:1.8;">
+            <div>👤 Username: <strong style="color:var(--text);">{{ auth.user.username }}</strong></div>
+            <div>📧 Email: <strong style="color:var(--text);">{{ auth.user.email }}</strong></div>
+            <div>🏢 Organization: <strong style="color:var(--text);">{{ auth.user.organization_name || 'Not Assigned Yet' }}</strong></div>
+            <div>📅 Joined: <strong style="color:var(--text);">{{ formatDate(auth.user.date_joined) }}</strong></div>
+          </div>
+          <div style="margin-top:16px;">
+            <button class="btn btn-ghost btn-sm" @click="page='profile'">Edit Profile →</button>
+          </div>
+        </div>
+        <div class="info-box">
+          ℹ️ <strong>Note:</strong> Your organization is managed by your Admin. Contact your Admin if you need to be added or removed from an organization.
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ORGANIZATIONS PAGE ═══ -->
+    <div v-if="page==='organizations'">
+      <div class="page-header">
+        <div>
+          <div class="page-title">{{ isSuperAdmin ? 'Organizations' : 'My Organization' }}</div>
+          <div class="page-sub">{{ isSuperAdmin ? 'Manage all organizations in the system' : 'View and manage your organization members' }}</div>
+        </div>
+        <button class="btn btn-primary" @click="openModal('createOrg')" v-if="isSuperAdmin">+ New Organization</button>
+      </div>
+      <div class="info-box" v-if="isAdmin && !isSuperAdmin">
+        ℹ️ You can view and manage members of <strong>{{ auth.user.organization_name }}</strong>. Only Super Admin can create or manage other organizations.
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th><th>Description</th><th>Members</th><th>Status</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="org in orgs" :key="org.id">
+                <td style="font-weight:600;">{{ org.name }}</td>
+                <td style="color:var(--text-muted);">{{ org.description || '—' }}</td>
+                <td>{{ org.member_count }}</td>
+                <td><span class="role-badge" :class="org.is_active ? 'role-admin' : 'role-member'">{{ org.is_active ? 'Active' : 'Inactive' }}</span></td>
+                <td>
+                  <div class="actions">
+                    <button class="btn btn-ghost btn-sm" @click="openModal('editOrg', org)" v-if="isSuperAdmin">Edit</button>
+                    <button class="btn btn-ghost btn-sm" @click="viewOrgMembers(org)" v-if="isSuperAdmin">Members</button>
+                    <button class="btn btn-danger btn-sm" @click="deleteOrg(org)" v-if="isSuperAdmin">Delete</button>
+                    <button class="btn btn-success btn-sm" @click="viewOrgMembers(org)" v-if="isAdmin && !isSuperAdmin">Manage Members</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="empty-state" v-if="orgs.length===0">
+            <div class="empty-icon">🏢</div>
+            <div>{{ isAdmin && !isSuperAdmin ? 'You are not assigned to any organization yet.' : 'No organizations yet.' }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ USERS PAGE ═══ -->
+    <div v-if="page==='users'">
+      <div class="page-header">
+        <div>
+          <div class="page-title">{{ isSuperAdmin ? 'All Users' : 'My Members' }}</div>
+          <div class="page-sub">{{ isSuperAdmin ? 'Manage all users across all organizations' : 'Members of ' + (auth.user.organization_name || 'your organization') }}</div>
+        </div>
+        <button class="btn btn-primary" @click="openModal('createUser')" v-if="isSuperAdmin">+ New User</button>
+      </div>
+      <div class="info-box" v-if="isAdmin && !isSuperAdmin">
+        ℹ️ You can <strong>add</strong> or <strong>remove</strong> members from your organization. Only Super Admin can promote users to Admin.
+      </div>
+      <div class="card">
+        <!-- ✅ CHANGE 1: button now calls openAddMember() instead of openModal('addMember') -->
+        <div style="margin-bottom:16px;" v-if="isAdmin && !isSuperAdmin">
+          <button class="btn btn-success btn-sm" @click="openAddMember()">+ Add Member to Organization</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>User</th><th>Email</th><th>Role</th><th>Organization</th><th>Joined</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="u in users" :key="u.id">
+                <td style="font-weight:600;">{{ u.username }}</td>
+                <td style="color:var(--text-muted);">{{ u.email }}</td>
+                <td><span class="role-badge" :class="'role-' + u.role">{{ formatRole(u.role) }}</span></td>
+                <td>{{ u.organization_name || '—' }}</td>
+                <td style="color:var(--text-muted);">{{ formatDate(u.date_joined) }}</td>
+                <td>
+                  <div class="actions">
+                    <button class="btn btn-success btn-sm" @click="makeAdmin(u)" v-if="isSuperAdmin && u.role==='member'">Make Admin</button>
+                    <button class="btn btn-warn btn-sm" @click="makeMember(u)" v-if="isSuperAdmin && u.role==='admin'">Demote</button>
+                    <button class="btn btn-ghost btn-sm" @click="openModal('editUser', u)" v-if="isSuperAdmin">Edit</button>
+                    <button class="btn btn-danger btn-sm" @click="deleteUser(u)" v-if="isSuperAdmin && u.id !== auth.user.id">Delete</button>
+                    <button class="btn btn-danger btn-sm" @click="removeMemberFromOrg(u)" v-if="isAdmin && !isSuperAdmin && u.role==='member' && u.id !== auth.user.id">Remove</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="empty-state" v-if="users.length===0">
+            <div class="empty-icon">👥</div>
+            <div>No users found</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ PROFILE PAGE ═══ -->
+    <div v-if="page==='profile'">
+      <div class="page-header">
+        <div>
+          <div class="page-title">My Profile</div>
+          <div class="page-sub">Your account information</div>
+        </div>
+      </div>
+      <div class="card" style="max-width:500px;">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+          <div class="user-avatar" style="width:56px;height:56px;font-size:22px;">{{ auth.user.username[0].toUpperCase() }}</div>
+          <div>
+            <div style="font-size:20px;font-weight:700;">{{ auth.user.username }}</div>
+            <span class="role-badge" :class="'role-' + auth.user.role">{{ formatRole(auth.user.role) }}</span>
+          </div>
+        </div>
+        <div style="display:grid;gap:12px;font-size:14px;">
+          <div><span style="color:var(--text-muted);">Email: </span>{{ auth.user.email }}</div>
+          <div><span style="color:var(--text-muted);">First Name: </span>{{ auth.user.first_name || '—' }}</div>
+          <div><span style="color:var(--text-muted);">Last Name: </span>{{ auth.user.last_name || '—' }}</div>
+          <div><span style="color:var(--text-muted);">Organization: </span>{{ auth.user.organization_name || 'Not Assigned' }}</div>
+          <div><span style="color:var(--text-muted);">Joined: </span>{{ formatDate(auth.user.date_joined) }}</div>
+        </div>
+        <div style="margin-top:20px;">
+          <button class="btn btn-ghost" @click="openModal('editProfile')">Edit Profile</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- Create/Edit Organization -->
+<div class="modal-overlay" v-if="modal.type==='createOrg' || modal.type==='editOrg'" @click.self="closeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">{{ modal.type==='createOrg' ? '🏢 New Organization' : '✏️ Edit Organization' }}</div>
+      <button class="modal-close" @click="closeModal">✕</button>
+    </div>
+    <div class="form-group">
+      <label>Organization Name *</label>
+      <input class="form-control" v-model="modal.data.name" placeholder="e.g. Acme Corp"/>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <input class="form-control" v-model="modal.data.description" placeholder="Brief description"/>
+    </div>
+    <div class="form-group" v-if="modal.type==='editOrg'">
+      <label>Status</label>
+      <select class="form-control" v-model="modal.data.is_active">
+        <option :value="true">Active</option>
+        <option :value="false">Inactive</option>
+      </select>
+    </div>
+    <div class="error-msg" v-if="modal.error">{{ modal.error }}</div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" @click="closeModal">Cancel</button>
+      <button class="btn btn-primary" @click="saveOrg" :disabled="modal.loading">
+        <span v-if="modal.loading" class="spinner"></span>
+        <span v-else>{{ modal.type==='createOrg' ? 'Create' : 'Save Changes' }}</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Create/Edit User (Super Admin only) -->
+<div class="modal-overlay" v-if="modal.type==='createUser' || modal.type==='editUser'" @click.self="closeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">{{ modal.type==='createUser' ? '👤 New User' : '✏️ Edit User' }}</div>
+      <button class="modal-close" @click="closeModal">✕</button>
+    </div>
+    <div class="form-group">
+      <label>Username *</label>
+      <input class="form-control" v-model="modal.data.username" placeholder="username"/>
+    </div>
+    <div class="form-group">
+      <label>Email *</label>
+      <input class="form-control" type="email" v-model="modal.data.email" placeholder="email@example.com"/>
+    </div>
+    <div class="form-group">
+      <label>First Name</label>
+      <input class="form-control" v-model="modal.data.first_name" placeholder="First name"/>
+    </div>
+    <div class="form-group">
+      <label>Last Name</label>
+      <input class="form-control" v-model="modal.data.last_name" placeholder="Last name"/>
+    </div>
+    <div class="form-group">
+      <label>Role</label>
+      <select class="form-control" v-model="modal.data.role">
+        <option value="member">Member</option>
+        <option value="admin">Admin</option>
+        <option value="super_admin">Super Admin</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Organization</label>
+      <select class="form-control" v-model="modal.data.organization">
+        <option :value="null">None</option>
+        <option v-for="org in orgs" :key="org.id" :value="org.id">{{ org.name }}</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>{{ modal.type==='createUser' ? 'Password *' : 'New Password (leave blank to keep)' }}</label>
+      <input class="form-control" type="password" v-model="modal.data.password" placeholder="Password"/>
+    </div>
+    <div class="error-msg" v-if="modal.error">{{ modal.error }}</div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" @click="closeModal">Cancel</button>
+      <button class="btn btn-primary" @click="saveUser" :disabled="modal.loading">
+        <span v-if="modal.loading" class="spinner"></span>
+        <span v-else>{{ modal.type==='createUser' ? 'Create User' : 'Save Changes' }}</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Profile -->
+<div class="modal-overlay" v-if="modal.type==='editProfile'" @click.self="closeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">✏️ Edit My Profile</div>
+      <button class="modal-close" @click="closeModal">✕</button>
+    </div>
+    <div class="form-group">
+      <label>First Name</label>
+      <input class="form-control" v-model="modal.data.first_name" placeholder="First name"/>
+    </div>
+    <div class="form-group">
+      <label>Last Name</label>
+      <input class="form-control" v-model="modal.data.last_name" placeholder="Last name"/>
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input class="form-control" type="email" v-model="modal.data.email" placeholder="email@example.com"/>
+    </div>
+    <div class="form-group">
+      <label>New Password (leave blank to keep current)</label>
+      <input class="form-control" type="password" v-model="modal.data.password" placeholder="New password"/>
+    </div>
+    <div class="error-msg" v-if="modal.error">{{ modal.error }}</div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" @click="closeModal">Cancel</button>
+      <button class="btn btn-primary" @click="saveProfile" :disabled="modal.loading">
+        <span v-if="modal.loading" class="spinner"></span>
+        <span v-else>Save Changes</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Member to Org (Admin only) -->
+<div class="modal-overlay" v-if="modal.type==='addMember'" @click.self="closeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">➕ Add Member to Organization</div>
+      <button class="modal-close" @click="closeModal">✕</button>
+    </div>
+    <div class="info-box">
+      Adding member to: <strong>{{ auth.user.organization_name }}</strong>
+    </div>
+    <div class="form-group">
+      <label>Select User *</label>
+      <select class="form-control" v-model="modal.data.user_id">
+        <option :value="null">— Select a user —</option>
+        <!-- ✅ CHANGE 2: uses availableUsers which comes from /users/unassigned/ -->
+        <option v-for="u in availableUsers" :key="u.id" :value="u.id">
+          {{ u.username }} ({{ u.email }})
+        </option>
+      </select>
+    </div>
+    <div style="color:var(--text-muted);font-size:12px;margin-top:-10px;margin-bottom:10px;" v-if="availableUsers.length===0">
+      No users available to add (all users are already in organizations)
+    </div>
+    <div class="error-msg" v-if="modal.error">{{ modal.error }}</div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" @click="closeModal">Cancel</button>
+      <button class="btn btn-success" @click="addMemberToOrg" :disabled="modal.loading || !modal.data.user_id">
+        <span v-if="modal.loading" class="spinner"></span>
+        <span v-else>Add Member</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Org Members Viewer -->
+<div class="modal-overlay" v-if="modal.type==='viewMembers'" @click.self="closeModal">
+  <div class="modal" style="width:560px;">
+    <div class="modal-header">
+      <div class="modal-title">👥 {{ modal.data.orgName }} — Members</div>
+      <button class="modal-close" @click="closeModal">✕</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Username</th><th>Email</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr v-for="m in modal.data.members" :key="m.id">
+            <td style="font-weight:600;">{{ m.username }}</td>
+            <td style="color:var(--text-muted);">{{ m.email }}</td>
+            <td><span class="role-badge" :class="'role-'+m.role">{{ formatRole(m.role) }}</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="empty-state" v-if="!modal.data.members || modal.data.members.length===0">
+        <div class="empty-icon">👥</div>
+        <div>No members yet</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" @click="closeModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" :class="toast.type" v-if="toast.show">{{ toast.message }}</div>
+
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script>
+const API = 'http://localhost:8000/api';
+const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+createApp({
+  setup() {
+    const auth = reactive({ user: null, token: null, loading: false, error: null });
+    const loginForm = reactive({ username: '', password: '' });
+    const page = ref('dashboard');
+    const orgs = ref([]);
+    const users = ref([]);
+    // ✅ CHANGE 3: allUsers now holds results from /users/unassigned/ — not /users/
+    const allUsers = ref([]);
+    const stats = ref(null);
+    const modal = reactive({ type: null, data: {}, error: null, loading: false });
+    const toast = reactive({ show: false, message: '', type: 'success' });
+
+    const isSuperAdmin = computed(() => auth.user?.role === 'super_admin');
+    const isAdmin = computed(() => ['super_admin', 'admin'].includes(auth.user?.role));
+    const isMember = computed(() => auth.user?.role === 'member');
+
+    // ✅ CHANGE 4: availableUsers is just allUsers directly (backend already filters)
+    const availableUsers = computed(() => allUsers.value);
+
+    function showToast(message, type = 'success') {
+      toast.message = message; toast.type = type; toast.show = true;
+      setTimeout(() => toast.show = false, 3000);
+    }
+    function formatRole(r) {
+      return { super_admin: 'Super Admin', admin: 'Admin', member: 'Member' }[r] || r;
+    }
+    function formatDate(d) {
+      return d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+    }
+    async function apiFetch(path, opts = {}) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (auth.token) headers['Authorization'] = `Token ${auth.token}`;
+      const res = await fetch(API + path, { headers, ...opts });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.detail || JSON.stringify(data));
+      return data;
+    }
+
+    // ── AUTH ──
+    async function login() {
+      auth.loading = true; auth.error = null;
+      try {
+        const data = await apiFetch('/auth/login/', { method: 'POST', body: JSON.stringify(loginForm) });
+        auth.token = data.token;
+        auth.user = data.user;
+        localStorage.setItem('token', data.token);
+        await loadAll();
+      } catch (e) { auth.error = e.message; }
+      finally { auth.loading = false; }
+    }
+    async function logout() {
+      try { await apiFetch('/auth/logout/', { method: 'POST' }); } catch {}
+      auth.user = null; auth.token = null;
+      localStorage.removeItem('token');
+      page.value = 'dashboard';
+    }
+    async function restoreSession() {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      auth.token = token;
+      try {
+        auth.user = await apiFetch('/auth/me/');
+        await loadAll();
+      } catch { localStorage.removeItem('token'); auth.token = null; }
+    }
+
+    // ── DATA LOADING ──
+    async function loadAll() {
+      const role = auth.user?.role;
+      await loadStats();
+      if (role === 'super_admin' || role === 'admin') {
+        await loadOrgs();
+        await loadUsers();
+      }
+    }
+    async function loadOrgs() {
+      try { orgs.value = await apiFetch('/organizations/'); } catch { orgs.value = []; }
+    }
+    async function loadUsers() {
+      try { users.value = await apiFetch('/users/'); } catch { users.value = []; }
+    }
+    async function loadStats() {
+      try { stats.value = await apiFetch('/dashboard/stats/'); } catch {}
+    }
+
+    // ── NAVIGATION ──
+    async function goOrgs() { page.value = 'organizations'; await loadOrgs(); }
+    async function goUsers() { page.value = 'users'; await loadUsers(); }
+
+    // ── MODAL ──
+    function openModal(type, data = {}) {
+      modal.type = type;
+      modal.data = { ...data, password: '' };
+      modal.error = null;
+    }
+    function closeModal() { modal.type = null; modal.data = {}; modal.error = null; }
+
+    // ✅ CHANGE 5: new function — fetches unassigned users THEN opens modal
+    async function openAddMember() {
+      // Always fetch fresh list of unassigned users from the dedicated endpoint
+      allUsers.value = await apiFetch('/users/unassigned/').catch(() => []);
+      openModal('addMember');
+    }
+
+    // ── ORGANIZATIONS ──
+    async function saveOrg() {
+      if (!modal.data.name) { modal.error = 'Name is required'; return; }
+      modal.loading = true; modal.error = null;
+      try {
+        if (modal.type === 'createOrg') {
+          await apiFetch('/organizations/', { method: 'POST', body: JSON.stringify(modal.data) });
+          showToast('Organization created!');
+        } else {
+          await apiFetch(`/organizations/${modal.data.id}/`, { method: 'PATCH', body: JSON.stringify(modal.data) });
+          showToast('Organization updated!');
+        }
+        closeModal(); await loadOrgs(); await loadStats();
+      } catch (e) { modal.error = e.message; }
+      finally { modal.loading = false; }
+    }
+    async function deleteOrg(org) {
+      if (!confirm(`Delete "${org.name}"? This cannot be undone.`)) return;
+      try {
+        await apiFetch(`/organizations/${org.id}/`, { method: 'DELETE' });
+        showToast('Organization deleted'); await loadOrgs(); await loadStats();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+    async function viewOrgMembers(org) {
+      try {
+        const members = await apiFetch(`/organizations/${org.id}/members/`);
+        openModal('viewMembers', { orgName: org.name, members });
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    // ── USERS (Super Admin) ──
+    async function saveUser() {
+      if (!modal.data.username || !modal.data.email) { modal.error = 'Username and email are required'; return; }
+      if (modal.type === 'createUser' && !modal.data.password) { modal.error = 'Password is required'; return; }
+      modal.loading = true; modal.error = null;
+      const payload = { ...modal.data };
+      if (!payload.password) delete payload.password;
+      try {
+        if (modal.type === 'createUser') {
+          await apiFetch('/users/', { method: 'POST', body: JSON.stringify(payload) });
+          showToast('User created!');
+        } else {
+          await apiFetch(`/users/${modal.data.id}/`, { method: 'PATCH', body: JSON.stringify(payload) });
+          showToast('User updated!');
+        }
+        closeModal(); await loadUsers(); await loadStats();
+      } catch (e) { modal.error = e.message; }
+      finally { modal.loading = false; }
+    }
+    async function deleteUser(u) {
+      if (!confirm(`Delete user "${u.username}"?`)) return;
+      try {
+        await apiFetch(`/users/${u.id}/`, { method: 'DELETE' });
+        showToast('User deleted'); await loadUsers(); await loadStats();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+    async function makeAdmin(u) {
+      try {
+        await apiFetch(`/users/${u.id}/make_admin/`, { method: 'POST' });
+        showToast(`${u.username} is now an Admin`); await loadUsers();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+    async function makeMember(u) {
+      try {
+        await apiFetch(`/users/${u.id}/make_member/`, { method: 'POST' });
+        showToast(`${u.username} demoted to Member`); await loadUsers();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    // ── MEMBERS (Admin) ──
+    async function addMemberToOrg() {
+      if (!modal.data.user_id) { modal.error = 'Please select a user'; return; }
+      modal.loading = true; modal.error = null;
+      try {
+        const orgId = auth.user.organization;
+        await apiFetch(`/organizations/${orgId}/add_member/`, {
+          method: 'POST',
+          body: JSON.stringify({ user_id: modal.data.user_id })
+        });
+        showToast('Member added successfully!');
+        closeModal(); await loadUsers(); await loadStats();
+      } catch (e) { modal.error = e.message; }
+      finally { modal.loading = false; }
+    }
+    async function removeMemberFromOrg(u) {
+      if (!confirm(`Remove "${u.username}" from the organization?`)) return;
+      try {
+        const orgId = auth.user.organization;
+        await apiFetch(`/organizations/${orgId}/remove_member/`, {
+          method: 'POST',
+          body: JSON.stringify({ user_id: u.id })
+        });
+        showToast(`${u.username} removed from organization`); await loadUsers(); await loadStats();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    // ── PROFILE ──
+    async function saveProfile() {
+      modal.loading = true; modal.error = null;
+      const payload = {
+        first_name: modal.data.first_name,
+        last_name: modal.data.last_name,
+        email: modal.data.email,
+      };
+      if (modal.data.password) payload.password = modal.data.password;
+      try {
+        await apiFetch(`/users/${auth.user.id}/`, { method: 'PATCH', body: JSON.stringify(payload) });
+        auth.user = await apiFetch('/auth/me/');
+        showToast('Profile updated!');
+        closeModal();
+      } catch (e) { modal.error = e.message; }
+      finally { modal.loading = false; }
+    }
+
+    onMounted(restoreSession);
+
+    return {
+      auth, loginForm, page, orgs, users, allUsers, stats, modal, toast,
+      isSuperAdmin, isAdmin, isMember, availableUsers,
+      login, logout, goOrgs, goUsers,
+      openModal, closeModal, openAddMember,
+      saveOrg, deleteOrg, viewOrgMembers,
+      saveUser, deleteUser, makeAdmin, makeMember,
+      addMemberToOrg, removeMemberFromOrg,
+      saveProfile,
+      formatRole, formatDate
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
