@@ -24,8 +24,9 @@
         <div><span style="color:var(--text-muted);">Joined: </span>{{ formatDate(user.date_joined) }}</div>
       </div>
 
-      <div style="margin-top:20px;">
+      <div style="margin-top:20px;display:flex;gap:10px;">
         <button class="btn btn-ghost" @click="modal.show = true">Edit Profile</button>
+        <button v-if="isAdmin" class="btn btn-warn" @click="goToResetPassword">Reset Password</button>
       </div>
     </div>
 
@@ -59,13 +60,20 @@
 <script setup>
 import { reactive, computed } from 'vue'
 import { useStore } from 'vuex'
+import { useRouter } from 'vue-router'
 import { updateUser, getMe } from '@/api'
 
-const store = useStore()
-const user  = computed(() => store.getters['auth/user'])
+const store  = useStore()
+const router = useRouter()
+const user    = computed(() => store.getters['auth/user'])
+const isAdmin = computed(() => store.getters['auth/isAdmin'])
 
 const form  = reactive({ first_name: '', last_name: '', email: '', password: '' })
 const modal = reactive({ show: false, error: null, loading: false })
+
+function goToResetPassword() {
+  router.push({ path: '/forgot-password', query: { email: user.value.email } })
+}
 
 function formatRole(r) {
   return { super_admin: 'Super Admin', admin: 'Admin', member: 'Member' }[r] || r

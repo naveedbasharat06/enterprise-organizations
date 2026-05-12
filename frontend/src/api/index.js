@@ -41,3 +41,7 @@ export const updateUser = (id, data) => api.patch(`/users/${id}/`, data)
 export const deleteUser = id => api.delete(`/users/${id}/`)
 export const makeAdmin = id => api.post(`/users/${id}/make_admin/`)
 export const makeMember = id => api.post(`/users/${id}/make_member/`)
+
+export const forgotPassword = (email) => api.post('/auth/forgot-password/', { email })
+export const resetPasswordConfirm = (email, otp, new_password) =>
+  api.post('/auth/reset-password-confirm/', { email, otp, new_password })

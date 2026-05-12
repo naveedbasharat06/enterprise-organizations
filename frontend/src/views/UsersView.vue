@@ -160,7 +160,7 @@ async function openAddMember() {
   modal.show = true; modal.type = 'addMember'
   modal.data = { user_id: null }; modal.error = null
 }
-function closeModal() { modal.show = false }
+function closeModal() { modal.show = false; modal.error = null }
 
 async function saveUser() {
   if (!modal.data.username || !modal.data.email) { modal.error = 'Username and email are required'; return }

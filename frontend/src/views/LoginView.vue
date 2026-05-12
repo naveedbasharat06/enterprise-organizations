@@ -20,7 +20,11 @@
         <span v-else>Sign In</span>
       </button>
 
-      <div style="margin-top:16px;font-size:12px;color:var(--text-muted);text-align:center;">
+      <div style="margin-top:16px;text-align:center;">
+        <router-link to="/forgot-password" class="forgot-link">Forgot Password?</router-link>
+      </div>
+
+      <div style="margin-top:12px;font-size:12px;color:var(--text-muted);text-align:center;">
         superadmin / Admin@1234 &nbsp;|&nbsp; admin_tech / Admin@1234 &nbsp;|&nbsp; john_member / Admin@1234
       </div>
     </div>
@@ -57,4 +61,6 @@ async function submit() {
 }
 .login-logo { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
 .login-sub  { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; }
+.forgot-link { font-size: 13px; color: var(--accent); text-decoration: none; }
+.forgot-link:hover { text-decoration: underline; }
 </style>

@@ -44,3 +44,18 @@ class UserSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField()
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField()
+    new_password = serializers.CharField(min_length=8)
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ResetPasswordConfirmSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+    new_password = serializers.CharField(min_length=8)

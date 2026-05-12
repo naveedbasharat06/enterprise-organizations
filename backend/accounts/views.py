@@ -1,13 +1,18 @@
 from django.contrib.auth import authenticate
+from django.core.mail import send_mail
+from django.conf import settings
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated, AllowAny
- 
-from .models import User, Organization
-from .serializers import UserSerializer, OrganizationSerializer, LoginSerializer
+
+from .models import User, Organization, PasswordResetOTP
+from .serializers import (
+    UserSerializer, OrganizationSerializer, LoginSerializer,
+    ForgotPasswordSerializer, ResetPasswordConfirmSerializer
+)
 from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin
  
  
@@ -45,8 +50,70 @@ class MeView(APIView):
  
     def get(self, request):
         return Response(UserSerializer(request.user).data)
- 
- 
+
+
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'message': 'If this email is registered, an OTP has been sent.'})
+        otp_obj = PasswordResetOTP.generate_for_user(user)
+        try:
+            send_mail(
+                subject='Password Reset OTP - RoleBase',
+                message=(
+                    f'Hello {user.username},\n\n'
+                    f'Your OTP for password reset is: {otp_obj.otp}\n\n'
+                    f'This OTP is valid for 15 minutes.\n\n'
+                    f'If you did not request this, please ignore this email.\n\n'
+                    f'- RoleBase Team'
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return Response(
+                {'error': f'Failed to send email: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        return Response({'message': 'If this email is registered, an OTP has been sent.'})
+
+
+class ResetPasswordConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        otp = serializer.validated_data['otp']
+        new_password = serializer.validated_data['new_password']
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'error': 'Invalid email or OTP'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            otp_obj = PasswordResetOTP.objects.filter(user=user, otp=otp, is_used=False).latest('created_at')
+        except PasswordResetOTP.DoesNotExist:
+            return Response({'error': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
+        if not otp_obj.is_valid():
+            return Response({'error': 'OTP has expired. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(new_password)
+        user.save()
+        otp_obj.is_used = True
+        otp_obj.save()
+        Token.objects.filter(user=user).delete()
+        return Response({'message': 'Password reset successfully. You can now log in.'})
+
+
 # ─── ORGANIZATION VIEWSET ────────────────────────────────────────────────────
  
 class OrganizationViewSet(viewsets.ModelViewSet):
@@ -164,6 +231,7 @@ class UserViewSet(viewsets.ModelViewSet):
         target.role = 'member'
         target.save()
         return Response({'message': f'{target.username} is now a Member'})
+
  
  
 # ─── DASHBOARD STATS ─────────────────────────────────────────────────────────
