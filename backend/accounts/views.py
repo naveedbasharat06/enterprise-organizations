@@ -8,10 +8,11 @@ from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
-from .models import User, Organization, PasswordResetOTP
+from .models import User, Organization, PasswordResetOTP, AppPermission, Role, UserRole, UserDirectPermission
 from .serializers import (
     UserSerializer, OrganizationSerializer, LoginSerializer,
-    ForgotPasswordSerializer, ResetPasswordConfirmSerializer
+    ForgotPasswordSerializer, ResetPasswordConfirmSerializer,
+    AppPermissionSerializer, RoleSerializer, UserRoleSerializer, UserDirectPermissionSerializer
 )
 from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin
  
@@ -232,8 +233,193 @@ class UserViewSet(viewsets.ModelViewSet):
         target.save()
         return Response({'message': f'{target.username} is now a Member'})
 
- 
- 
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrSuperAdmin])
+    def assign_role(self, request, pk=None):
+        target = self.get_object()
+        role_id = request.data.get('role_id')
+        if not role_id:
+            return Response({'error': 'role_id is required'}, status=400)
+        try:
+            role = Role.objects.get(id=role_id)
+        except Role.DoesNotExist:
+            return Response({'error': 'Role not found'}, status=404)
+        if request.user.role == 'admin':
+            if role.organization != request.user.organization:
+                return Response({'error': 'You can only assign roles from your organization'}, status=403)
+            if target.organization != request.user.organization:
+                return Response({'error': 'You can only assign roles to users in your organization'}, status=403)
+        UserRole.objects.get_or_create(user=target, role=role, defaults={'assigned_by': request.user})
+        return Response({'message': f'Role "{role.name}" assigned to {target.username}'})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrSuperAdmin])
+    def remove_role(self, request, pk=None):
+        target = self.get_object()
+        role_id = request.data.get('role_id')
+        try:
+            user_role = UserRole.objects.get(user=target, role_id=role_id)
+            user_role.delete()
+            return Response({'message': 'Role removed successfully'})
+        except UserRole.DoesNotExist:
+            return Response({'error': 'Role not assigned to this user'}, status=404)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminOrSuperAdmin])
+    def roles(self, request, pk=None):
+        target = self.get_object()
+        user_roles = UserRole.objects.filter(user=target).select_related('role', 'assigned_by')
+        return Response(UserRoleSerializer(user_roles, many=True).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrSuperAdmin])
+    def assign_permission(self, request, pk=None):
+        target = self.get_object()
+        permission_id = request.data.get('permission_id')
+        if not permission_id:
+            return Response({'error': 'permission_id is required'}, status=400)
+        try:
+            permission = AppPermission.objects.get(id=permission_id)
+        except AppPermission.DoesNotExist:
+            return Response({'error': 'Permission not found'}, status=404)
+        if request.user.role == 'admin' and target.organization != request.user.organization:
+            return Response({'error': 'You can only assign permissions to users in your organization'}, status=403)
+        UserDirectPermission.objects.get_or_create(
+            user=target, permission=permission, defaults={'assigned_by': request.user}
+        )
+        return Response({'message': f'Permission "{permission.name}" assigned to {target.username}'})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrSuperAdmin])
+    def remove_permission(self, request, pk=None):
+        target = self.get_object()
+        permission_id = request.data.get('permission_id')
+        try:
+            udp = UserDirectPermission.objects.get(user=target, permission_id=permission_id)
+            udp.delete()
+            return Response({'message': 'Permission removed successfully'})
+        except UserDirectPermission.DoesNotExist:
+            return Response({'error': 'Permission not directly assigned to this user'}, status=404)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminOrSuperAdmin])
+    def direct_permissions(self, request, pk=None):
+        target = self.get_object()
+        perms = UserDirectPermission.objects.filter(user=target).select_related('permission', 'assigned_by')
+        return Response(UserDirectPermissionSerializer(perms, many=True).data)
+
+
+# ─── PERMISSION VIEWSET ───────────────────────────────────────────────────────
+
+class AppPermissionViewSet(viewsets.ModelViewSet):
+    serializer_class = AppPermissionSerializer
+
+    def get_permissions(self):
+        return [IsAdminOrSuperAdmin()]
+
+    def get_queryset(self):
+        from django.db.models import Q
+        user = self.request.user
+        if not user.is_authenticated:
+            return AppPermission.objects.none()
+        if user.role == 'super_admin':
+            return AppPermission.objects.all()
+        if user.role == 'admin' and user.organization:
+            # Admin sees: global (org=None) + their own org's permissions
+            return AppPermission.objects.filter(
+                Q(organization=None) | Q(organization=user.organization)
+            )
+        return AppPermission.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.role == 'admin':
+            serializer.save(created_by=user, organization=user.organization)
+        else:
+            serializer.save(created_by=user, organization=None)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if request.user.role == 'admin':
+            if instance.organization != request.user.organization:
+                return Response(
+                    {'error': 'You can only edit permissions created for your organization'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if request.user.role == 'admin':
+            if instance.organization != request.user.organization:
+                return Response(
+                    {'error': 'You can only delete permissions created for your organization'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        return super().destroy(request, *args, **kwargs)
+
+
+# ─── ROLE VIEWSET ─────────────────────────────────────────────────────────────
+
+class RoleViewSet(viewsets.ModelViewSet):
+    queryset = Role.objects.all()
+    serializer_class = RoleSerializer
+
+    def get_permissions(self):
+        return [IsAdminOrSuperAdmin()]
+
+    def get_queryset(self):
+        from django.db.models import Q
+        user = self.request.user
+        if not user.is_authenticated:
+            return Role.objects.none()
+        if user.role == 'super_admin':
+            return Role.objects.all().prefetch_related('permissions')
+        if user.role == 'admin' and user.organization:
+            # Admin sees: global roles (org=None) + their own org's roles
+            return Role.objects.filter(
+                Q(organization=None) | Q(organization=user.organization)
+            ).prefetch_related('permissions')
+        return Role.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.role == 'admin':
+            serializer.save(created_by=user, organization=user.organization)
+        else:
+            serializer.save(created_by=user)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if request.user.role == 'admin':
+            if instance.organization is None or instance.organization != request.user.organization:
+                return Response(
+                    {'error': 'You can only edit roles created for your organization'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if request.user.role == 'admin':
+            if instance.organization is None or instance.organization != request.user.organization:
+                return Response(
+                    {'error': 'You can only delete roles created for your organization'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'])
+    def assign_permissions(self, request, pk=None):
+        role = self.get_object()
+        permission_ids = request.data.get('permission_ids', [])
+        permissions = AppPermission.objects.filter(id__in=permission_ids)
+        role.permissions.set(permissions)
+        return Response(RoleSerializer(role).data)
+
+
 # ─── DASHBOARD STATS ─────────────────────────────────────────────────────────
  
 class DashboardStatsView(APIView):

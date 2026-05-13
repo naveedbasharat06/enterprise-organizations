@@ -41,7 +41,27 @@ export const updateUser = (id, data) => api.patch(`/users/${id}/`, data)
 export const deleteUser = id => api.delete(`/users/${id}/`)
 export const makeAdmin = id => api.post(`/users/${id}/make_admin/`)
 export const makeMember = id => api.post(`/users/${id}/make_member/`)
+export const getUserRoles = id => api.get(`/users/${id}/roles/`)
+export const assignRole = (id, role_id) => api.post(`/users/${id}/assign_role/`, { role_id })
+export const removeRole = (id, role_id) => api.post(`/users/${id}/remove_role/`, { role_id })
+export const getUserDirectPermissions = id => api.get(`/users/${id}/direct_permissions/`)
+export const assignPermissionToUser = (id, permission_id) => api.post(`/users/${id}/assign_permission/`, { permission_id })
+export const removePermissionFromUser = (id, permission_id) => api.post(`/users/${id}/remove_permission/`, { permission_id })
 
 export const forgotPassword = (email) => api.post('/auth/forgot-password/', { email })
 export const resetPasswordConfirm = (email, otp, new_password) =>
   api.post('/auth/reset-password-confirm/', { email, otp, new_password })
+
+// ── PERMISSIONS ───────────────────────────────────────────────────────────────
+export const getPermissions = () => api.get('/permissions/')
+export const createPermission = data => api.post('/permissions/', data)
+export const updatePermission = (id, data) => api.patch(`/permissions/${id}/`, data)
+export const deletePermission = id => api.delete(`/permissions/${id}/`)
+
+// ── ROLES ─────────────────────────────────────────────────────────────────────
+export const getRoles = () => api.get('/roles/')
+export const createRole = data => api.post('/roles/', data)
+export const updateRole = (id, data) => api.patch(`/roles/${id}/`, data)
+export const deleteRole = id => api.delete(`/roles/${id}/`)
+export const assignPermissionsToRole = (id, permission_ids) =>
+  api.post(`/roles/${id}/assign_permissions/`, { permission_ids })

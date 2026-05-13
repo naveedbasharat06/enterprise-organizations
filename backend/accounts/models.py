@@ -45,6 +45,74 @@ class User(AbstractUser):
         return self.role in [self.ROLE_SUPER_ADMIN, self.ROLE_ADMIN]
 
 
+class AppPermission(models.Model):
+    name = models.CharField(max_length=255)
+    codename = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE,
+        null=True, blank=True, related_name='app_permissions'
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name='created_permissions'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('codename', 'organization')
+
+    def __str__(self):
+        org = self.organization.name if self.organization else 'Global'
+        return f"{self.name} ({self.codename}) [{org}]"
+
+
+class Role(models.Model):
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE,
+        null=True, blank=True, related_name='roles'
+    )
+    permissions = models.ManyToManyField(AppPermission, blank=True, related_name='roles')
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name='created_roles'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('name', 'organization')
+
+    def __str__(self):
+        org = self.organization.name if self.organization else 'Global'
+        return f"{self.name} ({org})"
+
+
+class UserRole(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_roles')
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='user_roles')
+    assigned_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name='roles_assigned_by_me'
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'role')
+
+
+class UserDirectPermission(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='direct_permissions')
+    permission = models.ForeignKey(
+        AppPermission, on_delete=models.CASCADE, related_name='direct_user_permissions'
+    )
+    assigned_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name='permissions_assigned_by_me'
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'permission')
+
+
 class PasswordResetOTP(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reset_otps')
     otp = models.CharField(max_length=6)

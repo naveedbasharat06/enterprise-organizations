@@ -3,12 +3,15 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     LoginView, LogoutView, MeView,
     ForgotPasswordView, ResetPasswordConfirmView,
-    OrganizationViewSet, UserViewSet, DashboardStatsView
+    OrganizationViewSet, UserViewSet, DashboardStatsView,
+    AppPermissionViewSet, RoleViewSet
 )
 
 router = DefaultRouter()
 router.register(r'organizations', OrganizationViewSet)
 router.register(r'users', UserViewSet)
+router.register(r'permissions', AppPermissionViewSet, basename='apppermission')
+router.register(r'roles', RoleViewSet)
 
 urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='login'),

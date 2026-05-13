@@ -21,6 +21,8 @@ const routes = [
       { path: '', name: 'Dashboard', component: () => import('@/views/DashboardView.vue') },
       { path: 'organizations', name: 'Organizations', component: () => import('@/views/OrganizationsView.vue') },
       { path: 'users', name: 'Users', component: () => import('@/views/UsersView.vue') },
+      { path: 'roles', name: 'Roles', component: () => import('@/views/RolesView.vue') },
+      { path: 'permissions', name: 'Permissions', component: () => import('@/views/PermissionsView.vue') },
       { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue') },
     ],
   },

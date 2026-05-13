@@ -33,6 +33,18 @@
           </div>
         </router-link>
 
+        <router-link v-if="isAdmin" to="/roles" custom v-slot="{ navigate, isActive }">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+            <span class="nav-icon">🎭</span> Roles
+          </div>
+        </router-link>
+
+        <router-link v-if="isAdmin" to="/permissions" custom v-slot="{ navigate, isActive }">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+            <span class="nav-icon">🔑</span> Permissions
+          </div>
+        </router-link>
+
         <router-link to="/profile" custom v-slot="{ navigate, isActive }">
           <div class="nav-item" :class="{ active: isActive }" @click="navigate">
             <span class="nav-icon">👤</span> My Profile
