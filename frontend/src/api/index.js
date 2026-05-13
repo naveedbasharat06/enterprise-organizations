@@ -18,6 +18,8 @@ export const login = (username, password) =>
 export const logout = () => api.post('/auth/logout/')
 
 export const getMe = () => api.get('/auth/me/')
+export const getMyRoles = () => api.get('/auth/me/roles/')
+export const getMyDirectPermissions = () => api.get('/auth/me/permissions/')
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────
 export const getStats = () => api.get('/dashboard/stats/')

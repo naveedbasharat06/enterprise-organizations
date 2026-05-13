@@ -106,6 +106,19 @@ class UserRoleSerializer(serializers.ModelSerializer):
         fields = ['id', 'role_id', 'role_name', 'assigned_by_username', 'assigned_at']
 
 
+class MyRoleSerializer(serializers.ModelSerializer):
+    role_id = serializers.IntegerField(source='role.id', read_only=True)
+    role_name = serializers.CharField(source='role.name', read_only=True)
+    role_description = serializers.CharField(source='role.description', read_only=True)
+    assigned_by_username = serializers.CharField(source='assigned_by.username', read_only=True)
+    permissions = AppPermissionSerializer(source='role.permissions', many=True, read_only=True)
+
+    class Meta:
+        model = UserRole
+        fields = ['id', 'role_id', 'role_name', 'role_description',
+                  'assigned_by_username', 'assigned_at', 'permissions']
+
+
 class UserDirectPermissionSerializer(serializers.ModelSerializer):
     permission_name = serializers.CharField(source='permission.name', read_only=True)
     permission_codename = serializers.CharField(source='permission.codename', read_only=True)

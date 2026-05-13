@@ -45,6 +45,12 @@
           </div>
         </router-link>
 
+        <router-link to="/my-access" custom v-slot="{ navigate, isActive }">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+            <span class="nav-icon">🛡️</span> My Access
+          </div>
+        </router-link>
+
         <router-link to="/profile" custom v-slot="{ navigate, isActive }">
           <div class="nav-item" :class="{ active: isActive }" @click="navigate">
             <span class="nav-icon">👤</span> My Profile

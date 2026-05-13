@@ -12,7 +12,8 @@ from .models import User, Organization, PasswordResetOTP, AppPermission, Role, U
 from .serializers import (
     UserSerializer, OrganizationSerializer, LoginSerializer,
     ForgotPasswordSerializer, ResetPasswordConfirmSerializer,
-    AppPermissionSerializer, RoleSerializer, UserRoleSerializer, UserDirectPermissionSerializer
+    AppPermissionSerializer, RoleSerializer,
+    UserRoleSerializer, MyRoleSerializer, UserDirectPermissionSerializer
 )
 from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin
  
@@ -40,17 +41,42 @@ class LoginView(APIView):
  
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
- 
+
     def post(self, request):
         request.user.auth_token.delete()
         return Response({'message': 'Logged out successfully'})
- 
- 
+
+
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
- 
+
     def get(self, request):
         return Response(UserSerializer(request.user).data)
+
+
+class MyRolesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_roles = (
+            UserRole.objects
+            .filter(user=request.user)
+            .select_related('role', 'assigned_by')
+            .prefetch_related('role__permissions')
+        )
+        return Response(MyRoleSerializer(user_roles, many=True).data)
+
+
+class MyDirectPermissionsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        perms = (
+            UserDirectPermission.objects
+            .filter(user=request.user)
+            .select_related('permission', 'assigned_by')
+        )
+        return Response(UserDirectPermissionSerializer(perms, many=True).data)
 
 
 class ForgotPasswordView(APIView):
