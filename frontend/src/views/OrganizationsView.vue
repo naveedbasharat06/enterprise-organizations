@@ -18,7 +18,7 @@
         <table>
           <thead>
             <tr>
-              <th>Name</th><th>Description</th><th>Members</th><th>Status</th><th>Actions</th>
+              <th>Name</th><th>Description</th><th>Members</th><th>Status</th><th>Recording</th><th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -28,10 +28,23 @@
               <td>{{ org.member_count }}</td>
               <td><span class="role-badge" :class="org.is_active ? 'role-admin' : 'role-member'">{{ org.is_active ? 'Active' : 'Inactive' }}</span></td>
               <td>
+                <span v-if="isSuperAdmin">
+                  <span class="role-badge" :class="org.can_use_recording ? 'role-admin' : 'role-member'">
+                    {{ org.can_use_recording ? 'Enabled' : 'Disabled' }}
+                  </span>
+                </span>
+                <span v-else style="color:var(--text-muted);font-size:13px;">
+                  {{ org.can_use_recording ? 'Enabled' : 'Disabled' }}
+                </span>
+              </td>
+              <td>
                 <div class="actions">
                   <template v-if="isSuperAdmin">
                     <button class="btn btn-ghost btn-sm" @click="openEdit(org)">Edit</button>
                     <button class="btn btn-ghost btn-sm" @click="viewMembers(org)">Members</button>
+                    <button class="btn btn-sm" :class="org.can_use_recording ? 'btn-danger' : 'btn-success'" @click="handleToggleRecording(org)">
+                      {{ org.can_use_recording ? 'Disable Recording' : 'Enable Recording' }}
+                    </button>
                     <button class="btn btn-danger btn-sm" @click="handleDelete(org)">Delete</button>
                   </template>
                   <button v-else class="btn btn-success btn-sm" @click="viewMembers(org)">Manage Members</button>
@@ -109,6 +122,7 @@
 <script setup>
 import { reactive, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
+import { toggleOrgRecording } from '@/api'
 
 const store        = useStore()
 const user         = computed(() => store.getters['auth/user'])
@@ -163,6 +177,16 @@ async function handleDelete(org) {
     store.dispatch('fetchStats')
   } catch (e) {
     store.dispatch('showToast', { message: e.response?.data?.error || 'Delete failed', type: 'error' })
+  }
+}
+
+async function handleToggleRecording(org) {
+  try {
+    const { data } = await toggleOrgRecording(org.id)
+    org.can_use_recording = data.can_use_recording
+    store.dispatch('showToast', { message: data.message })
+  } catch (e) {
+    store.dispatch('showToast', { message: e.response?.data?.error || 'Failed to toggle recording', type: 'error' })
   }
 }
 

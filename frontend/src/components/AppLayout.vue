@@ -51,6 +51,12 @@
           </div>
         </router-link>
 
+        <router-link v-if="canRecord" to="/recording" custom v-slot="{ navigate, isActive }">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+            <span class="nav-icon">🎬</span> Recording
+          </div>
+        </router-link>
+
         <router-link to="/profile" custom v-slot="{ navigate, isActive }">
           <div class="nav-item" :class="{ active: isActive }" @click="navigate">
             <span class="nav-icon">👤</span> My Profile
@@ -81,6 +87,11 @@ const router = useRouter()
 const user        = computed(() => store.getters['auth/user'])
 const isSuperAdmin = computed(() => store.getters['auth/isSuperAdmin'])
 const isAdmin      = computed(() => store.getters['auth/isAdmin'])
+const canRecord    = computed(() => {
+  if (!user.value) return false
+  if (isSuperAdmin.value) return true
+  return user.value.org_recording_enabled === true
+})
 
 function formatRole(r) {
   return { super_admin: 'Super Admin', admin: 'Admin', member: 'Member' }[r] || r

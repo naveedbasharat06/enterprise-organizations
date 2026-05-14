@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Organization, AppPermission, Role, UserRole, UserDirectPermission, UserInvitation
+from .models import User, Organization, AppPermission, Role, UserRole, UserDirectPermission, UserInvitation, Recording
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
@@ -7,7 +7,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Organization
-        fields = ['id', 'name', 'description', 'created_at', 'is_active', 'member_count']
+        fields = ['id', 'name', 'description', 'created_at', 'is_active', 'member_count', 'can_use_recording']
 
     def get_member_count(self, obj):
         return obj.members.count()
@@ -15,13 +15,18 @@ class OrganizationSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     organization_name = serializers.CharField(source='organization.name', read_only=True)
+    org_recording_enabled = serializers.SerializerMethodField()
     password = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name',
-                  'role', 'organization', 'organization_name', 'password', 'date_joined']
+                  'role', 'organization', 'organization_name', 'org_recording_enabled',
+                  'password', 'date_joined']
         read_only_fields = ['date_joined']
+
+    def get_org_recording_enabled(self, obj):
+        return obj.organization.can_use_recording if obj.organization else False
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
@@ -143,3 +148,30 @@ class UserDirectPermissionSerializer(serializers.ModelSerializer):
         model = UserDirectPermission
         fields = ['id', 'permission_id', 'permission_name', 'permission_codename',
                   'assigned_by_username', 'assigned_at']
+
+
+class RecordingSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    organization_name = serializers.CharField(source='organization.name', read_only=True)
+    pdf_url = serializers.SerializerMethodField()
+    video_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Recording
+        fields = [
+            'id', 'title', 'username', 'organization_name',
+            'status', 'error_message', 'pdf_url', 'video_url',
+            'transcript_data', 'created_at', 'updated_at',
+        ]
+
+    def get_pdf_url(self, obj):
+        if obj.pdf_file:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.pdf_file.url) if request else obj.pdf_file.url
+        return None
+
+    def get_video_url(self, obj):
+        if obj.video_file:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.video_file.url) if request else obj.video_file.url
+        return None

@@ -11,6 +11,7 @@ class Organization(models.Model):
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
+    can_use_recording = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
@@ -132,6 +133,36 @@ class UserInvitation(models.Model):
 
     def __str__(self):
         return f"Invitation for {self.email} ({self.role})"
+
+
+class Recording(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_PROCESSING = 'processing'
+    STATUS_DONE = 'done'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_PROCESSING, 'Processing'),
+        (STATUS_DONE, 'Done'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recordings')
+    organization = models.ForeignKey(
+        Organization, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='recordings'
+    )
+    title = models.CharField(max_length=255, blank=True)
+    video_file = models.FileField(upload_to='recordings/')
+    transcript_data = models.JSONField(null=True, blank=True)
+    pdf_file = models.FileField(upload_to='transcripts/', null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.title or 'Recording'}"
 
 
 class PasswordResetOTP(models.Model):

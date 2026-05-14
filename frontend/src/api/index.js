@@ -109,3 +109,10 @@ export const updateRole = (id, data) => api.patch(`/roles/${id}/`, data)
 export const deleteRole = id => api.delete(`/roles/${id}/`)
 export const assignPermissionsToRole = (id, permission_ids) =>
   api.post(`/roles/${id}/assign_permissions/`, { permission_ids })
+
+// ── RECORDINGS ────────────────────────────────────────────────────────────
+export const getRecordings = () => api.get('/recordings/')
+export const uploadRecording = (formData) =>
+  api.post('/recordings/', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+export const deleteRecording = id => api.delete(`/recordings/${id}/`)
+export const toggleOrgRecording = id => api.post(`/organizations/${id}/toggle_recording/`)

@@ -30,6 +30,7 @@ const routes = [
       { path: 'permissions', name: 'Permissions', component: () => import('@/views/PermissionsView.vue') },
       { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue') },
       { path: 'my-access', name: 'MyAccess', component: () => import('@/views/MyAccessView.vue') },
+      { path: 'recording', name: 'Recording', component: () => import('@/views/RecordingView.vue') },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/' },
