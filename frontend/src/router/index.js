@@ -41,10 +41,10 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, _from, next) => {
-  const token = localStorage.getItem('token')
+  const refreshToken = localStorage.getItem('refreshToken')
 
-  // Restore session if we have token but no user loaded yet
-  if (token && !store.getters['auth/isLoggedIn']) {
+  // Restore session from refresh token if user not yet loaded
+  if (refreshToken && !store.getters['auth/isLoggedIn']) {
     await store.dispatch('auth/restoreSession')
   }
 

@@ -5,8 +5,11 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
+
+from .throttles import LoginThrottle, PasswordResetThrottle, InviteThrottle
 
 from .models import User, Organization, PasswordResetOTP, AppPermission, Role, UserRole, UserDirectPermission, UserInvitation
 from .serializers import (
@@ -23,7 +26,8 @@ from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin
  
 class LoginView(APIView):
     permission_classes = [AllowAny]
- 
+    throttle_classes = [LoginThrottle]
+
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -33,18 +37,24 @@ class LoginView(APIView):
         )
         if not user:
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
-        token, _ = Token.objects.get_or_create(user=user)
+        refresh = RefreshToken.for_user(user)
         return Response({
-            'token': token.key,
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
             'user': UserSerializer(user).data
         })
- 
- 
+
+
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        request.user.auth_token.delete()
+        refresh_token = request.data.get('refresh')
+        if refresh_token:
+            try:
+                RefreshToken(refresh_token).blacklist()
+            except TokenError:
+                pass
         return Response({'message': 'Logged out successfully'})
 
 
@@ -82,6 +92,7 @@ class MyDirectPermissionsView(APIView):
 
 class InviteUserView(APIView):
     permission_classes = [IsSuperAdmin]
+    throttle_classes = [InviteThrottle]
 
     def post(self, request):
         serializer = InviteUserSerializer(data=request.data)
@@ -185,6 +196,7 @@ class AcceptInvitationView(APIView):
 
 class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetThrottle]
 
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
@@ -241,7 +253,7 @@ class ResetPasswordConfirmView(APIView):
         user.save()
         otp_obj.is_used = True
         otp_obj.save()
-        Token.objects.filter(user=user).delete()
+        # JWT tokens are stateless and expire on their own (15 min access / 7 day refresh)
         return Response({'message': 'Password reset successfully. You can now log in.'})
 
 

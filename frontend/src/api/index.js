@@ -2,24 +2,70 @@ import axios from 'axios'
 
 const BASE = 'http://localhost:8000/api'
 
-const api = axios.create({ baseURL: BASE })
+export const api = axios.create({ baseURL: BASE })
 
-// Attach token to every request
+// Separate instance for refresh calls — no interceptors, prevents infinite loop
+const refreshApi = axios.create({ baseURL: BASE })
+
+// In-memory access token (more secure than localStorage — not readable by XSS)
+let _accessToken = null
+export function updateAccessToken(token) { _accessToken = token }
+
+// Attach Bearer token to every request
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token')
-  if (token) config.headers.Authorization = `Token ${token}`
+  if (_accessToken) config.headers.Authorization = `Bearer ${_accessToken}`
   return config
 })
+
+// On 401: try to refresh the access token, then retry the original request
+api.interceptors.response.use(
+  res => res,
+  async err => {
+    const original = err.config
+    if (err.response?.status === 401 && !original._retry) {
+      original._retry = true
+      const refreshToken = localStorage.getItem('refreshToken')
+      if (refreshToken) {
+        try {
+          const { data } = await refreshApi.post('/auth/token/refresh/', { refresh: refreshToken })
+          updateAccessToken(data.access)
+          if (data.refresh) localStorage.setItem('refreshToken', data.refresh)
+          original.headers.Authorization = `Bearer ${data.access}`
+          return api(original)
+        } catch {
+          updateAccessToken(null)
+          localStorage.removeItem('refreshToken')
+          window.location.href = '/login'
+        }
+      } else {
+        window.location.href = '/login'
+      }
+    }
+    return Promise.reject(err)
+  }
+)
 
 // ── AUTH ──────────────────────────────────────────────────────────────────
 export const login = (username, password) =>
   api.post('/auth/login/', { username, password })
 
-export const logout = () => api.post('/auth/logout/')
+export const logout = (refresh) => api.post('/auth/logout/', { refresh })
 
 export const getMe = () => api.get('/auth/me/')
+
+export const refreshTokens = (refresh) =>
+  refreshApi.post('/auth/token/refresh/', { refresh })
+
 export const getMyRoles = () => api.get('/auth/me/roles/')
 export const getMyDirectPermissions = () => api.get('/auth/me/permissions/')
+
+export const inviteUser = (data) => api.post('/auth/invite/', data)
+export const getInvitation = (token) => api.get(`/auth/accept-invitation/?token=${token}`)
+export const acceptInvitation = (data) => api.post('/auth/accept-invitation/', data)
+
+export const forgotPassword = (email) => api.post('/auth/forgot-password/', { email })
+export const resetPasswordConfirm = (email, otp, new_password) =>
+  api.post('/auth/reset-password-confirm/', { email, otp, new_password })
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────
 export const getStats = () => api.get('/dashboard/stats/')
@@ -50,21 +96,13 @@ export const getUserDirectPermissions = id => api.get(`/users/${id}/direct_permi
 export const assignPermissionToUser = (id, permission_id) => api.post(`/users/${id}/assign_permission/`, { permission_id })
 export const removePermissionFromUser = (id, permission_id) => api.post(`/users/${id}/remove_permission/`, { permission_id })
 
-export const inviteUser = (data) => api.post('/auth/invite/', data)
-export const getInvitation = (token) => api.get(`/auth/accept-invitation/?token=${token}`)
-export const acceptInvitation = (data) => api.post('/auth/accept-invitation/', data)
-
-export const forgotPassword = (email) => api.post('/auth/forgot-password/', { email })
-export const resetPasswordConfirm = (email, otp, new_password) =>
-  api.post('/auth/reset-password-confirm/', { email, otp, new_password })
-
-// ── PERMISSIONS ───────────────────────────────────────────────────────────────
+// ── PERMISSIONS ───────────────────────────────────────────────────────────
 export const getPermissions = () => api.get('/permissions/')
 export const createPermission = data => api.post('/permissions/', data)
 export const updatePermission = (id, data) => api.patch(`/permissions/${id}/`, data)
 export const deletePermission = id => api.delete(`/permissions/${id}/`)
 
-// ── ROLES ─────────────────────────────────────────────────────────────────────
+// ── ROLES ─────────────────────────────────────────────────────────────────
 export const getRoles = () => api.get('/roles/')
 export const createRole = data => api.post('/roles/', data)
 export const updateRole = (id, data) => api.patch(`/roles/${id}/`, data)
