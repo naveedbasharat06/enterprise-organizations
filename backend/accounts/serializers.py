@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Organization, AppPermission, Role, UserRole, UserDirectPermission
+from .models import User, Organization, AppPermission, Role, UserRole, UserDirectPermission, UserInvitation
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
@@ -49,6 +49,20 @@ class LoginSerializer(serializers.Serializer):
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField()
     new_password = serializers.CharField(min_length=8)
+
+
+class InviteUserSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    role = serializers.ChoiceField(choices=User.ROLE_CHOICES, default=User.ROLE_MEMBER)
+    organization = serializers.PrimaryKeyRelatedField(
+        queryset=Organization.objects.all(), required=False, allow_null=True
+    )
+
+
+class AcceptInvitationSerializer(serializers.Serializer):
+    token = serializers.UUIDField()
+    username = serializers.CharField(min_length=3)
+    password = serializers.CharField(min_length=8)
 
 
 class ForgotPasswordSerializer(serializers.Serializer):

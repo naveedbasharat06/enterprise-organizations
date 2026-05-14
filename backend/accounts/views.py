@@ -8,9 +8,10 @@ from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
-from .models import User, Organization, PasswordResetOTP, AppPermission, Role, UserRole, UserDirectPermission
+from .models import User, Organization, PasswordResetOTP, AppPermission, Role, UserRole, UserDirectPermission, UserInvitation
 from .serializers import (
     UserSerializer, OrganizationSerializer, LoginSerializer,
+    InviteUserSerializer, AcceptInvitationSerializer,
     ForgotPasswordSerializer, ResetPasswordConfirmSerializer,
     AppPermissionSerializer, RoleSerializer,
     UserRoleSerializer, MyRoleSerializer, UserDirectPermissionSerializer
@@ -77,6 +78,109 @@ class MyDirectPermissionsView(APIView):
             .select_related('permission', 'assigned_by')
         )
         return Response(UserDirectPermissionSerializer(perms, many=True).data)
+
+
+class InviteUserView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        serializer = InviteUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data['email']
+        role = serializer.validated_data.get('role', 'member')
+        organization = serializer.validated_data.get('organization')
+
+        if User.objects.filter(email=email).exists():
+            return Response({'error': 'A user with this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        UserInvitation.objects.filter(email=email, is_used=False).delete()
+        invitation = UserInvitation.objects.create(
+            email=email, role=role, organization=organization, invited_by=request.user
+        )
+
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        invite_link = f"{frontend_url}/accept-invitation?token={invitation.token}"
+        role_display = {'super_admin': 'Super Admin', 'admin': 'Admin', 'member': 'Member'}.get(role, role)
+        org_name = organization.name if organization else 'RoleBase'
+
+        try:
+            send_mail(
+                subject=f"You've been invited to join {org_name} on RoleBase",
+                message=(
+                    f"Hello,\n\n"
+                    f"You have been invited to join RoleBase as a {role_display}"
+                    f"{' in ' + org_name if organization else ''}.\n\n"
+                    f"Click the link below to set up your account:\n{invite_link}\n\n"
+                    f"This link expires in 7 days.\n\n"
+                    f"- RoleBase Team"
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            invitation.delete()
+            return Response(
+                {'error': f'Failed to send invitation email: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        return Response({'message': f'Invitation sent to {email}'})
+
+
+class AcceptInvitationView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        token = request.query_params.get('token')
+        if not token:
+            return Response({'error': 'Token is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            invitation = UserInvitation.objects.select_related('organization').get(token=token)
+        except (UserInvitation.DoesNotExist, Exception):
+            return Response({'error': 'Invalid invitation link'}, status=status.HTTP_404_NOT_FOUND)
+        if not invitation.is_valid():
+            return Response({'error': 'This invitation has expired or has already been used.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'email': invitation.email,
+            'role': invitation.role,
+            'organization_name': invitation.organization.name if invitation.organization else None,
+        })
+
+    def post(self, request):
+        serializer = AcceptInvitationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        token = serializer.validated_data['token']
+        username = serializer.validated_data['username']
+        password = serializer.validated_data['password']
+
+        try:
+            invitation = UserInvitation.objects.select_related('organization').get(token=token)
+        except (UserInvitation.DoesNotExist, Exception):
+            return Response({'error': 'Invalid invitation link'}, status=status.HTTP_404_NOT_FOUND)
+        if not invitation.is_valid():
+            return Response({'error': 'This invitation has expired or has already been used.'}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=username).exists():
+            return Response({'error': 'This username is already taken.'}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(email=invitation.email).exists():
+            return Response({'error': 'An account with this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User(
+            username=username,
+            email=invitation.email,
+            role=invitation.role,
+            organization=invitation.organization,
+        )
+        user.set_password(password)
+        user.save()
+
+        invitation.is_used = True
+        invitation.save()
+
+        return Response({'message': 'Account created successfully. You can now log in.'})
 
 
 class ForgotPasswordView(APIView):

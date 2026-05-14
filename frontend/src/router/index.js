@@ -14,6 +14,11 @@ const routes = [
     component: () => import('@/views/ForgotPasswordView.vue'),
   },
   {
+    path: '/accept-invitation',
+    name: 'AcceptInvitation',
+    component: () => import('@/views/AcceptInvitationView.vue'),
+  },
+  {
     path: '/',
     component: () => import('@/components/AppLayout.vue'),
     meta: { requiresAuth: true },

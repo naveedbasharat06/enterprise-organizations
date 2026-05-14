@@ -5,7 +5,7 @@
         <div class="page-title">{{ isSuperAdmin ? 'All Users' : 'My Members' }}</div>
         <div class="page-sub">{{ isSuperAdmin ? 'Manage all users across all organizations' : 'Members of ' + (user.organization_name || 'your organization') }}</div>
       </div>
-      <button v-if="isSuperAdmin" class="btn btn-primary" @click="openCreate">+ New User</button>
+      <button v-if="isSuperAdmin" class="btn btn-primary" @click="openInvite">✉️ Invite User</button>
     </div>
 
     <div v-if="!isSuperAdmin" class="info-box">
@@ -56,11 +56,49 @@
       </div>
     </div>
 
-    <!-- Create/Edit User Modal -->
-    <div v-if="modal.show && (modal.type === 'create' || modal.type === 'edit')" class="modal-overlay" @click.self="closeModal">
+    <!-- Invite User Modal -->
+    <div v-if="modal.show && modal.type === 'invite'" class="modal-overlay" @click.self="closeModal">
       <div class="modal">
         <div class="modal-header">
-          <div class="modal-title">{{ modal.type === 'create' ? '👤 New User' : '✏️ Edit User' }}</div>
+          <div class="modal-title">✉️ Invite User</div>
+          <button class="modal-close" @click="closeModal">✕</button>
+        </div>
+        <div class="info-box" style="margin-bottom:16px;">
+          An invitation email will be sent. The user sets their own username and password via the link.
+        </div>
+        <div class="form-group"><label>Email *</label><input class="form-control" type="email" v-model="modal.data.email" placeholder="user@example.com" /></div>
+        <div class="form-group">
+          <label>Role</label>
+          <select class="form-control" v-model="modal.data.role">
+            <option value="member">Member</option>
+            <option value="admin">Admin</option>
+            <option value="super_admin">Super Admin</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Organization</label>
+          <select class="form-control" v-model="modal.data.organization">
+            <option :value="null">None</option>
+            <option v-for="org in orgs" :key="org.id" :value="org.id">{{ org.name }}</option>
+          </select>
+        </div>
+        <div v-if="modal.success" class="success-msg">{{ modal.success }}</div>
+        <div v-if="modal.error" class="error-msg">{{ modal.error }}</div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="closeModal">Cancel</button>
+          <button class="btn btn-primary" @click="sendInvite" :disabled="modal.loading">
+            <span v-if="modal.loading" class="spinner"></span>
+            <span v-else>Send Invitation</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div v-if="modal.show && modal.type === 'edit'" class="modal-overlay" @click.self="closeModal">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">✏️ Edit User</div>
           <button class="modal-close" @click="closeModal">✕</button>
         </div>
         <div class="form-group"><label>Username *</label><input class="form-control" v-model="modal.data.username" /></div>
@@ -83,7 +121,7 @@
           </select>
         </div>
         <div class="form-group">
-          <label>{{ modal.type === 'create' ? 'Password *' : 'New Password (leave blank to keep)' }}</label>
+          <label>New Password <span style="font-size:11px;color:var(--text-muted)">(leave blank to keep current)</span></label>
           <input class="form-control" type="password" v-model="modal.data.password" />
         </div>
         <div v-if="modal.error" class="error-msg">{{ modal.error }}</div>
@@ -91,7 +129,7 @@
           <button class="btn btn-ghost" @click="closeModal">Cancel</button>
           <button class="btn btn-primary" @click="saveUser" :disabled="modal.loading">
             <span v-if="modal.loading" class="spinner"></span>
-            <span v-else>{{ modal.type === 'create' ? 'Create User' : 'Save Changes' }}</span>
+            <span v-else>Save Changes</span>
           </button>
         </div>
       </div>
@@ -200,7 +238,7 @@
 <script setup>
 import { reactive, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
-import { getUserRoles, assignRole, removeRole, getUserDirectPermissions, assignPermissionToUser, removePermissionFromUser } from '@/api'
+import { inviteUser, getUserRoles, assignRole, removeRole, getUserDirectPermissions, assignPermissionToUser, removePermissionFromUser } from '@/api'
 
 const store        = useStore()
 const user         = computed(() => store.getters['auth/user'])
@@ -212,7 +250,7 @@ const allRoles     = computed(() => store.getters['roles/list'])
 const allPerms     = computed(() => store.getters['perms/list'])
 
 const modal = reactive({
-  show: false, type: '', data: {}, error: null, loading: false,
+  show: false, type: '', data: {}, error: null, success: null, loading: false,
   userRoles: [], userPerms: [],
   selectedRoleId: null, selectedPermId: null,
 })
@@ -231,10 +269,10 @@ function formatDate(d) {
   return d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
 }
 
-function openCreate() {
-  modal.show = true; modal.type = 'create'
-  modal.data = { username: '', email: '', first_name: '', last_name: '', role: 'member', organization: null, password: '' }
-  modal.error = null
+function openInvite() {
+  modal.show = true; modal.type = 'invite'
+  modal.data = { email: '', role: 'member', organization: null }
+  modal.error = null; modal.success = null
 }
 function openEdit(u) {
   modal.show = true; modal.type = 'edit'
@@ -245,22 +283,29 @@ async function openAddMember() {
   modal.show = true; modal.type = 'addMember'
   modal.data = { user_id: null }; modal.error = null
 }
-function closeModal() { modal.show = false; modal.error = null }
+function closeModal() { modal.show = false; modal.error = null; modal.success = null }
+
+async function sendInvite() {
+  if (!modal.data.email) { modal.error = 'Email is required'; return }
+  modal.loading = true; modal.error = null; modal.success = null
+  try {
+    await inviteUser(modal.data)
+    modal.success = `Invitation sent to ${modal.data.email}`
+    store.dispatch('showToast', { message: 'Invitation sent!' })
+    modal.data.email = ''
+  } catch (e) {
+    modal.error = e.response?.data?.error || 'Failed to send invitation'
+  } finally { modal.loading = false }
+}
 
 async function saveUser() {
   if (!modal.data.username || !modal.data.email) { modal.error = 'Username and email are required'; return }
-  if (modal.type === 'create' && !modal.data.password) { modal.error = 'Password is required'; return }
   modal.loading = true; modal.error = null
   const payload = { ...modal.data }
   if (!payload.password) delete payload.password
   try {
-    if (modal.type === 'create') {
-      await store.dispatch('users/create', payload)
-      store.dispatch('showToast', { message: 'User created!' })
-    } else {
-      await store.dispatch('users/update', payload)
-      store.dispatch('showToast', { message: 'User updated!' })
-    }
+    await store.dispatch('users/update', payload)
+    store.dispatch('showToast', { message: 'User updated!' })
     closeModal()
     store.dispatch('users/fetch')
     store.dispatch('fetchStats')
@@ -404,5 +449,10 @@ onMounted(async () => {
 .assigned-item {
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px;
+}
+.success-msg {
+  background: rgba(34,197,94,.12); color: #22c55e;
+  border: 1px solid rgba(34,197,94,.25); border-radius: 8px;
+  padding: 10px 14px; font-size: 13px; margin-bottom: 12px;
 }
 </style>

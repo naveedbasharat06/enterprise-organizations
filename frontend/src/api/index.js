@@ -50,6 +50,10 @@ export const getUserDirectPermissions = id => api.get(`/users/${id}/direct_permi
 export const assignPermissionToUser = (id, permission_id) => api.post(`/users/${id}/assign_permission/`, { permission_id })
 export const removePermissionFromUser = (id, permission_id) => api.post(`/users/${id}/remove_permission/`, { permission_id })
 
+export const inviteUser = (data) => api.post('/auth/invite/', data)
+export const getInvitation = (token) => api.get(`/auth/accept-invitation/?token=${token}`)
+export const acceptInvitation = (data) => api.post('/auth/accept-invitation/', data)
+
 export const forgotPassword = (email) => api.post('/auth/forgot-password/', { email })
 export const resetPasswordConfirm = (email, otp, new_password) =>
   api.post('/auth/reset-password-confirm/', { email, otp, new_password })
