@@ -1,7 +1,8 @@
-<<<<<<< HEAD
-# RoleBase Dashboard — Django + Vue.js
+# RoleBase Dashboard
 
-A role-based dashboard with three roles: **Super Admin**, **Admin**, and **Member**.
+A multi-tenant role-based access control dashboard built with **Django REST Framework** + **Vue.js 3**.
+
+Supports three roles — **Super Admin**, **Admin**, and **Member** — with organizations, custom roles, permissions, user invitations, screen recording, and AI transcription.
 
 ---
 
@@ -9,136 +10,184 @@ A role-based dashboard with three roles: **Super Admin**, **Admin**, and **Membe
 
 ```
 project/
-├── backend/               ← Django REST API
-│   ├── core/              ← Django project config (settings, urls)
-│   │   ├── settings.py    ← App config, DB, CORS, REST Framework
-│   │   └── urls.py        ← Root URL routing
-│   ├── accounts/          ← Main Django app
-│   │   ├── models.py      ← User + Organization models
-│   │   ├── serializers.py ← DRF serializers (JSON conversion)
-│   │   ├── views.py       ← API views + ViewSets
-│   │   ├── urls.py        ← API endpoint routing
-│   │   ├── permissions.py ← Custom role-based permissions
-│   │   └── admin.py       ← Django admin panel config
-│   ├── manage.py          ← Django CLI tool
-│   ├── seed_data.py       ← Creates demo users/orgs
-│   └── requirements.txt   ← Python dependencies
-│
+├── docker-compose.yml         ← runs everything with one command
+├── backend/
+│   ├── core/                  ← Django project (settings, urls, celery)
+│   ├── accounts/              ← Main app (models, views, tasks, permissions)
+│   ├── Dockerfile
+│   ├── entrypoint.sh
+│   ├── requirements.txt
+│   └── .env.example           ← copy to .env and fill in your values
 └── frontend/
-    └── index.html         ← Vue.js 3 app (CDN, no build needed)
+    ├── src/
+    │   ├── views/             ← Vue pages (Dashboard, Users, Roles, etc.)
+    │   ├── store/             ← Vuex state management
+    │   ├── router/            ← Vue Router
+    │   └── api/               ← Axios API calls
+    ├── Dockerfile
+    └── nginx.conf             ← Nginx config (serves Vue + proxies /api/)
 ```
 
 ---
 
-## How to Run
+## Running with Docker (Recommended)
 
-### Backend (Django)
+### Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 
+### 1. Set up environment variables
 ```bash
-# 1. Go to backend folder
 cd backend
-
-# 2. Create virtual environment
-python -m venv venv
-
-# 3. Activate it
-# Windows:
-venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
-
-# 4. Install dependencies
-pip install -r requirements.txt
-
-# 5. Run database migrations
-python manage.py migrate
-
-# 6. Create demo data (super admin + orgs + users)
-python seed_data.py
-
-# 7. Start the server
-python manage.py runserver
-# → Running at http://localhost:8000
+copy .env.example .env
 ```
+Edit `backend/.env` and fill in your values:
+- `SECRET_KEY` — any long random string
+- `GROQ_API_KEY` — get free at https://console.groq.com
+- `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` — Gmail + App Password
 
-### Frontend (Vue.js)
-
+### 2. Start everything
 ```bash
-# Option A — Python simple server (easiest)
-cd frontend
-python -m http.server 5173
-# Open http://localhost:5173
-
-# Option B — Just open the file
-# Double-click frontend/index.html in your file explorer
+# From the project root
+docker compose up --build
 ```
+
+That's it. All 4 services start together:
+
+| Service | URL |
+|---------|-----|
+| Frontend (Vue) | http://localhost |
+| Backend (Django) | http://localhost/api/ |
+| Django Admin | http://localhost/admin/ |
+| Redis | internal only |
+
+### 3. Stop everything
+```bash
+docker compose down
+```
+
+### Useful Docker commands
+```bash
+# Rebuild after code changes
+docker compose up --build
+
+# View logs
+docker compose logs -f
+
+# View logs for one service
+docker compose logs -f backend
+docker compose logs -f celery
+
+# Open Django shell inside container
+docker compose exec backend python manage.py shell
+
+# Create a superuser
+docker compose exec backend python manage.py createsuperuser
+
+# Run migrations manually
+docker compose exec backend python manage.py migrate
+```
+
+---
+
+## Running Locally (Without Docker)
+
+You need **4 terminals** running simultaneously.
+
+### Terminal 1 — Redis
+```bash
+# Start your Redis container (if using Docker for Redis only)
+docker start redis
+```
+
+### Terminal 2 — Django Backend
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate          # Windows
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+# → http://localhost:8000
+```
+
+### Terminal 3 — Celery Worker
+```bash
+cd backend
+venv\Scripts\activate
+celery -A core worker --loglevel=info --pool=solo
+# --pool=solo is required on Windows
+```
+
+### Terminal 4 — Vue Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+# → http://localhost:5173
+```
+
+---
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| Authentication | JWT login/logout, refresh tokens, 30-day sessions |
+| Organizations | Multi-tenant orgs managed by Super Admin |
+| Roles | Custom roles with assigned permissions |
+| Permissions | Fine-grained permission control |
+| Users | Invite via email, assign roles/permissions |
+| Screen Recording | Record screen + mic, upload video |
+| AI Transcription | Groq Whisper API (free, runs in background via Celery) |
+| PDF Export | Professional timestamped transcript PDF |
+| Password Reset | OTP via email |
 
 ---
 
 ## Demo Accounts
 
-| Username      | Password    | Role        | Organization |
-|---------------|-------------|-------------|--------------|
-| superadmin    | Admin@1234  | Super Admin | —            |
-| admin_tech    | Admin@1234  | Admin       | Tech Corp    |
-| john_member   | Admin@1234  | Member      | —            |
+| Username | Password | Role |
+|----------|----------|------|
+| superadmin | Admin@1234 | Super Admin |
+| (org admins) | Admin@1234 | Admin |
+| (members) | Admin@1234 | Member |
 
 ---
 
-## API Endpoints
+## Tech Stack
 
-| Method | Endpoint                              | Who Can Access       |
-|--------|---------------------------------------|----------------------|
-| POST   | /api/auth/login/                      | Anyone               |
-| POST   | /api/auth/logout/                     | Logged in users      |
-| GET    | /api/auth/me/                         | Logged in users      |
-| GET    | /api/dashboard/stats/                 | Logged in users      |
-| GET    | /api/organizations/                   | Logged in users      |
-| POST   | /api/organizations/                   | Super Admin only     |
-| PATCH  | /api/organizations/{id}/              | Super Admin only     |
-| DELETE | /api/organizations/{id}/              | Super Admin only     |
-| POST   | /api/organizations/{id}/enroll/       | Members              |
-| POST   | /api/organizations/{id}/leave/        | Members              |
-| GET    | /api/users/                           | Admin, Super Admin   |
-| POST   | /api/users/                           | Anyone (register)    |
-| PATCH  | /api/users/{id}/                      | Self or Admin        |
-| DELETE | /api/users/{id}/                      | Super Admin only     |
-| POST   | /api/users/{id}/make_admin/           | Super Admin only     |
-| POST   | /api/users/{id}/make_member/          | Super Admin only     |
+**Backend**
+- Django 4.x + Django REST Framework
+- SimpleJWT (authentication)
+- Celery + Redis (background tasks)
+- Groq Whisper API (transcription)
+- imageio-ffmpeg (audio extraction)
+- ReportLab (PDF generation)
+- SQLite (dev) / PostgreSQL (production)
 
----
+**Frontend**
+- Vue.js 3 (Composition API)
+- Vuex (state management)
+- Vue Router
+- Axios (HTTP client)
 
-## Key Concepts (for your colleague)
-
-### Django Backend
-
-- **models.py** — Defines database tables as Python classes. `User` extends Django's built-in `AbstractUser` and adds a `role` field and a foreign key to `Organization`.
-- **serializers.py** — Converts Python objects ↔ JSON. DRF serializers validate incoming data and format outgoing responses.
-- **views.py** — Contains the API logic. `ViewSet` handles all CRUD automatically. Custom `@action` decorators add extra endpoints like `/enroll/` or `/make_admin/`.
-- **permissions.py** — Custom permission classes that check the user's `role` before allowing access.
-- **urls.py** — Maps URL patterns to views. `DefaultRouter` auto-generates URLs for ViewSets.
-- **settings.py** — `AUTH_USER_MODEL = 'accounts.User'` tells Django to use our custom User model.
-
-### Vue.js Frontend
-
-- Single-file `index.html` using Vue 3 via CDN — no build step needed.
-- Uses `reactive()` and `ref()` for state management.
-- Token stored in `localStorage` for session persistence.
-- All API calls use `fetch()` with `Authorization: Token <token>` header.
-- Modals are controlled by a single `modal` reactive object with `type` and `data`.
+**Infrastructure**
+- Docker + Docker Compose
+- Nginx (reverse proxy + static file serving)
+- Gunicorn (WSGI server)
 
 ---
 
-## Role Permissions Summary
+## Environment Variables
 
-| Feature                    | Member | Admin | Super Admin |
-|----------------------------|--------|-------|-------------|
-| View organizations         | ✅     | ✅    | ✅          |
-| Join / leave organization  | ✅     | ✗     | ✗           |
-| Manage organization users  | ✗      | ✅    | ✅          |
-| Create organization        | ✗      | ✗     | ✅          |
-| Create/delete users        | ✗      | ✗     | ✅          |
-| Promote/demote users       | ✗      | ✗     | ✅          |
-=======
-test
->>>>>>> cd91ddc62da902f83757b3a5c58d5ff5946f5ca7
+Copy `backend/.env.example` to `backend/.env` and set:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SECRET_KEY` | Yes | Django secret key |
+| `DEBUG` | No | True/False (default False) |
+| `GROQ_API_KEY` | Yes | For AI transcription |
+| `EMAIL_HOST_USER` | Yes | Gmail address |
+| `EMAIL_HOST_PASSWORD` | Yes | Gmail App Password |
+| `DATABASE_URL` | No | Auto-set in Docker |
+| `CELERY_BROKER_URL` | No | Auto-set in Docker |

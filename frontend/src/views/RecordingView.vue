@@ -84,7 +84,7 @@
 
       <div v-if="uploading" class="upload-progress">
         <div class="spinner large-spinner"></div>
-        <div>Uploading and transcribing — this may take a minute for longer videos...</div>
+        <div>Uploading video — transcription will run in the background...</div>
       </div>
     </div>
 
@@ -189,8 +189,9 @@ const transcriptModal = reactive({ show: false, title: '', segments: [], pdfUrl:
 let mediaRecorder = null
 let chunks        = []
 let timerInterval = null
-let screenStream  = null   // screen video track
-let micStream     = null   // microphone audio track
+let screenStream  = null
+let micStream     = null
+let pollInterval  = null
 
 // ── recording ──────────────────────────────────────────────────────────────
 async function startRecording() {
@@ -272,9 +273,10 @@ async function submitRecording() {
     fd.append('title', recordTitle.value || 'Screen Recording')
     const { data } = await uploadRecording(fd)
     recordings.value.unshift(data)
-    store.dispatch('showToast', { message: 'Recording uploaded and transcribed!' })
+    store.dispatch('showToast', { message: 'Recording uploaded — transcription started!' })
     discardRecording()
     tab.value = 'history'
+    startPolling()
   } catch (e) {
     uploadError.value = e.response?.data?.error || 'Upload failed. Please try again.'
   } finally {
@@ -298,11 +300,12 @@ async function submitUpload() {
     fd.append('title', uploadTitle.value || uploadedFile.value.name)
     const { data } = await uploadRecording(fd)
     recordings.value.unshift(data)
-    store.dispatch('showToast', { message: 'Video transcribed successfully!' })
+    store.dispatch('showToast', { message: 'Video uploaded — transcription started!' })
     uploadedFile.value = null
     uploadTitle.value  = ''
     if (fileInputRef.value) fileInputRef.value.value = ''
     tab.value = 'history'
+    startPolling()
   } catch (e) {
     uploadError.value = e.response?.data?.error || 'Upload failed. Please try again.'
   } finally {
@@ -316,8 +319,33 @@ async function loadRecordings() {
   try {
     const { data } = await getRecordings()
     recordings.value = data
+    // Auto-start polling if any recording is still being processed
+    if (hasActiveJobs()) startPolling()
   } catch {}
   finally { loadingHistory.value = false }
+}
+
+function hasActiveJobs() {
+  return recordings.value.some(r => r.status === 'pending' || r.status === 'processing')
+}
+
+function startPolling() {
+  if (pollInterval) return  // already polling
+  pollInterval = setInterval(async () => {
+    try {
+      const { data } = await getRecordings()
+      // Merge updates — only replace entries that changed status
+      recordings.value = data
+      if (!hasActiveJobs()) stopPolling()
+    } catch {}
+  }, 5000)
+}
+
+function stopPolling() {
+  if (pollInterval) {
+    clearInterval(pollInterval)
+    pollInterval = null
+  }
 }
 
 async function handleDelete(rec) {
@@ -365,6 +393,7 @@ function statusLabel(s) {
 onMounted(loadRecordings)
 onUnmounted(() => {
   stopTimer()
+  stopPolling()
   if (isRecording.value) stopRecording()
   screenStream?.getTracks().forEach(t => t.stop())
   micStream?.getTracks().forEach(t => t.stop())

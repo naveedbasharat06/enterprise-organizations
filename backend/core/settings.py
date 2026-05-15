@@ -117,12 +117,28 @@ DEFAULT_FROM_EMAIL = config('EMAIL_HOST_USER', default='noreply@rolebase.com')
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 GROQ_API_KEY   = config('GROQ_API_KEY', default='')
+
+# ── Celery ────────────────────────────────────────────────────────────────────
+CELERY_BROKER_URL       = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND   = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+CELERY_TASK_SERIALIZER  = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_ACCEPT_CONTENT   = ['json']
+CELERY_TIMEZONE         = 'UTC'
+CELERY_TASK_TRACK_STARTED = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

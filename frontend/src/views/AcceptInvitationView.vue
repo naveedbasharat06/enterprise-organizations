@@ -22,7 +22,7 @@
         <div class="success-icon">✓</div>
         <h2>Account Created!</h2>
         <p class="sub">Your account has been set up. You can now log in.</p>
-        <router-link to="/login" class="btn btn-primary" style="margin-top:20px;">Go to Login</router-link>
+        <button class="btn btn-primary" style="margin-top:20px;" @click="goToLogin">Go to Login</button>
       </div>
 
       <!-- Form -->
@@ -72,10 +72,13 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { getInvitation, acceptInvitation } from '@/api/index.js'
+import { useRoute, useRouter } from 'vue-router'
+import { useStore } from 'vuex'
+import { getInvitation, acceptInvitation, updateAccessToken } from '@/api/index.js'
 
 const route = useRoute()
+const router = useRouter()
+const store = useStore()
 
 const state      = ref('loading')   // loading | invalid | form | done
 const errorMsg   = ref('')
@@ -123,6 +126,15 @@ async function submit() {
   } finally {
     submitting.value = false
   }
+}
+
+function goToLogin() {
+  // Clear only the browser-local session so the new user lands on the login page.
+  // Does NOT call the logout API, so any admin's server-side tokens stay valid.
+  updateAccessToken(null)
+  localStorage.removeItem('refreshToken')
+  store.commit('auth/SET_USER', null)
+  router.push('/login')
 }
 </script>
 

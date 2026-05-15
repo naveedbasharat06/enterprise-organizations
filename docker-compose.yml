@@ -1,0 +1,60 @@
+services:
+
+  # ── Redis (message broker for Celery) ──────────────────────────────────────
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  # ── Django backend ──────────────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    command: gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120
+    volumes:
+      - sqlite_data:/app/data        # SQLite database file
+      - media_data:/app/media        # uploaded videos + generated PDFs
+    env_file: ./backend/.env
+    environment:
+      - DATABASE_URL=sqlite:////app/data/db.sqlite3
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DEBUG=True
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # ── Celery worker (background transcription) ────────────────────────────────
+  celery:
+    build: ./backend
+    command: celery -A core worker --loglevel=info --concurrency=2
+    volumes:
+      - sqlite_data:/app/data        # same DB as backend
+      - media_data:/app/media        # same media folder as backend
+    env_file: ./backend/.env
+    environment:
+      - DATABASE_URL=sqlite:////app/data/db.sqlite3
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - RUN_MIGRATIONS=false         # backend handles migrations
+      - DEBUG=True
+    depends_on:
+      - redis
+      - backend
+    restart: unless-stopped
+
+  # ── Vue frontend served by Nginx ────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"                    # app available at http://localhost:8080
+    volumes:
+      - media_data:/app/media        # Nginx serves media files directly
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  redis_data:    # Redis persistence
+  sqlite_data:   # SQLite .db file
+  media_data:    # videos + PDFs (shared by backend, celery, nginx)
