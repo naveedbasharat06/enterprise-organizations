@@ -85,13 +85,17 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
     'UPDATE_LAST_LOGIN': True,
 }
+
+# Django Admin session — stay logged in for 30 days
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # 30 days in seconds
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # persist after closing browser
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
 
