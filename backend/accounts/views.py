@@ -479,6 +479,22 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(UserDirectPermissionSerializer(perms, many=True).data)
 
 
+def _check_owner(request, instance, label):
+    """
+    Super Admin can always edit/delete.
+    Admin can only edit/delete objects they personally created.
+    Returns a 403 Response if access is denied, otherwise None.
+    """
+    if request.user.role == 'super_admin':
+        return None
+    if instance.created_by_id != request.user.id:
+        return Response(
+            {'error': f'Only the creator or a Super Admin can edit or delete this {label}.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return None
+
+
 # ─── PERMISSION VIEWSET ───────────────────────────────────────────────────────
 
 class AppPermissionViewSet(viewsets.ModelViewSet):
@@ -509,13 +525,9 @@ class AppPermissionViewSet(viewsets.ModelViewSet):
             serializer.save(created_by=user, organization=None)
 
     def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if request.user.role == 'admin':
-            if instance.organization != request.user.organization:
-                return Response(
-                    {'error': 'You can only edit permissions created for your organization'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+        err = _check_owner(request, self.get_object(), 'permission')
+        if err:
+            return err
         return super().update(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
@@ -523,13 +535,9 @@ class AppPermissionViewSet(viewsets.ModelViewSet):
         return self.update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if request.user.role == 'admin':
-            if instance.organization != request.user.organization:
-                return Response(
-                    {'error': 'You can only delete permissions created for your organization'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+        err = _check_owner(request, self.get_object(), 'permission')
+        if err:
+            return err
         return super().destroy(request, *args, **kwargs)
 
 
@@ -549,11 +557,14 @@ class RoleViewSet(viewsets.ModelViewSet):
             return Role.objects.none()
         if user.role == 'super_admin':
             return Role.objects.all().prefetch_related('permissions')
-        if user.role == 'admin' and user.organization:
-            # Admin sees: global roles (org=None) + their own org's roles
+        if user.role in ('admin', 'member') and user.organization:
+            # Roles assigned directly to this user (by Super Admin or anyone)
+            assigned_ids = UserRole.objects.filter(user=user).values_list('role_id', flat=True)
             return Role.objects.filter(
-                Q(organization=None) | Q(organization=user.organization)
-            ).prefetch_related('permissions')
+                Q(organization=None)           # global roles (Super Admin created)
+                | Q(organization=user.organization)  # this org's roles
+                | Q(id__in=assigned_ids)       # roles personally assigned to this user
+            ).distinct().prefetch_related('permissions')
         return Role.objects.none()
 
     def perform_create(self, serializer):
@@ -564,13 +575,9 @@ class RoleViewSet(viewsets.ModelViewSet):
             serializer.save(created_by=user)
 
     def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if request.user.role == 'admin':
-            if instance.organization is None or instance.organization != request.user.organization:
-                return Response(
-                    {'error': 'You can only edit roles created for your organization'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+        err = _check_owner(request, self.get_object(), 'role')
+        if err:
+            return err
         return super().update(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
@@ -578,18 +585,17 @@ class RoleViewSet(viewsets.ModelViewSet):
         return self.update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if request.user.role == 'admin':
-            if instance.organization is None or instance.organization != request.user.organization:
-                return Response(
-                    {'error': 'You can only delete roles created for your organization'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+        err = _check_owner(request, self.get_object(), 'role')
+        if err:
+            return err
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])
     def assign_permissions(self, request, pk=None):
         role = self.get_object()
+        err = _check_owner(request, role, 'role')
+        if err:
+            return err
         permission_ids = request.data.get('permission_ids', [])
         permissions = AppPermission.objects.filter(id__in=permission_ids)
         role.permissions.set(permissions)

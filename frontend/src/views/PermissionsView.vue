@@ -91,11 +91,12 @@ import { useStore } from 'vuex'
 const store = useStore()
 const permissions  = computed(() => store.getters['perms/list'])
 const isSuperAdmin = computed(() => store.getters['auth/isSuperAdmin'])
+const user         = computed(() => store.getters['auth/user'])
 const modal = reactive({ show: false, type: 'create', data: {}, error: null, loading: false })
 
 function canManage(p) {
   if (isSuperAdmin.value) return true
-  return p.organization !== null
+  return p.created_by_username === user.value?.username
 }
 
 function formatDate(d) {

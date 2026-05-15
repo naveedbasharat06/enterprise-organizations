@@ -121,10 +121,11 @@ const roles          = computed(() => store.getters['roles/list'])
 const allPermissions = computed(() => store.getters['perms/list'])
 const orgs           = computed(() => store.getters['orgs/list'])
 const isSuperAdmin   = computed(() => store.getters['auth/isSuperAdmin'])
+const user           = computed(() => store.getters['auth/user'])
 
 function canManage(r) {
   if (isSuperAdmin.value) return true
-  return r.organization !== null
+  return r.created_by_username === user.value?.username
 }
 
 const modal = reactive({ show: false, type: '', data: {}, selectedPerms: [], error: null, loading: false })
