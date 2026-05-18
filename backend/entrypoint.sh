@@ -9,6 +9,9 @@ if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
 
     echo ">>> Collecting static files..."
     python manage.py collectstatic --noinput --clear
+
+    echo ">>> Seeding initial data (super admin + sample orgs)..."
+    python seed_data.py
 fi
 
 echo ">>> Starting: $@"

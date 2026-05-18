@@ -6,6 +6,95 @@ Supports three roles — **Super Admin**, **Admin**, and **Member** — with org
 
 ---
 
+## Installation Guide (First Time Setup)
+
+Follow these steps in order the very first time you run the project.
+
+### Step 1 — Install Docker Desktop
+
+Download and install from: https://www.docker.com/products/docker-desktop/
+
+After installing, open Docker Desktop and make sure it is **running** (green icon in system tray).
+
+### Step 2 — Get the project
+
+If you received a zip file, extract it. If you are cloning from Git:
+```bash
+git clone <repository-url>
+cd project
+```
+
+### Step 3 — Create your environment file
+
+Open a terminal in the `project` folder and run:
+```bash
+cd backend
+copy .env.example .env
+```
+
+Now open `backend/.env` in any text editor and fill in these values:
+
+```env
+SECRET_KEY=any-long-random-string-change-this
+DEBUG=True
+GROQ_API_KEY=your-groq-api-key-here
+EMAIL_HOST_USER=your-gmail@gmail.com
+EMAIL_HOST_PASSWORD=your-gmail-app-password
+```
+
+**Where to get these values:**
+- `SECRET_KEY` — type any random characters, e.g. `my-secret-key-abc123xyz456`
+- `GROQ_API_KEY` — sign up free at https://console.groq.com → API Keys → Create key
+- `EMAIL_HOST_PASSWORD` — this is a **Gmail App Password**, not your regular Gmail password. To get one:
+  1. Go to your Google Account → Security
+  2. Enable 2-Step Verification (required)
+  3. Go to Security → App Passwords
+  4. Create a new app password → copy the 16-character code
+
+### Step 4 — Start the application
+
+Go back to the `project` root folder and run:
+```bash
+docker compose up --build
+```
+
+Wait for all 4 services to start. You will see lines like:
+```
+backend   | >>> Running database migrations...
+backend   | >>> Seeding initial data (super admin + sample orgs)...
+backend   | ✓ Super Admin created: superadmin / Admin@1234
+```
+
+### Step 5 — Open the app
+
+Go to: **http://localhost:8080**
+
+Log in with the default Super Admin account (see below).
+
+> The first build takes 3–5 minutes to download all dependencies. Subsequent starts are much faster.
+
+---
+
+## Default Login Credentials
+
+These accounts are created automatically on first run:
+
+| Username | Password | Role | Access |
+|----------|----------|------|--------|
+| `superadmin` | `Admin@1234` | Super Admin | Full system access — create orgs, admins, users |
+| `admin_tech` | `Admin@1234` | Admin | Manages Tech Corp organization |
+| `john_member` | `Admin@1234` | Member | Basic member account |
+
+> **Important:** Change the `superadmin` password after first login in a production environment.
+
+**What to do after first login as Super Admin:**
+1. Go to **Organizations** → create your organization
+2. Go to **Users** → invite or create admin users for your org
+3. Go to **Roles** → create custom roles and assign permissions
+4. Go to **Users** → assign roles to members
+
+---
+
 ## Project Structure
 
 ```
@@ -151,11 +240,13 @@ npm run dev
 
 ## Demo Accounts
 
-| Username | Password | Role |
-|----------|----------|------|
-| superadmin | Admin@1234 | Super Admin |
-| (org admins) | Admin@1234 | Admin |
-| (members) | Admin@1234 | Member |
+These are created automatically on first run by `backend/seed_data.py`:
+
+| Username | Password | Role | Organization |
+|----------|----------|------|--------------|
+| `superadmin` | `Admin@1234` | Super Admin | — (manages all) |
+| `admin_tech` | `Admin@1234` | Admin | Tech Corp |
+| `john_member` | `Admin@1234` | Member | — (no org) |
 
 ---
 
