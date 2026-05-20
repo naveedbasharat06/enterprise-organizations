@@ -25,8 +25,13 @@ from .serializers import (
     RecordingSerializer
 )
 from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin, CanUseRecording
- 
- 
+
+
+def _is_platform_admin(user):
+    """Platform-wide admin (seeded superadmin, no org). Org super admins have an org assigned."""
+    return user.role == 'super_admin' and user.organization is None
+
+
 # ─── AUTH VIEWS ─────────────────────────────────────────────────────────────
  
 class LoginView(APIView):
@@ -277,14 +282,14 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not user.is_authenticated:
             return Organization.objects.none()
-        if user.role == 'super_admin':
+        if _is_platform_admin(user):
             return Organization.objects.all()
-        if user.role == 'admin':
-            if user.organization:
-                return Organization.objects.filter(id=user.organization.id)
-            return Organization.objects.none()
+        if user.role == 'super_admin' and user.organization:
+            return Organization.objects.filter(id=user.organization.id)
+        if user.role == 'admin' and user.organization:
+            return Organization.objects.filter(id=user.organization.id)
         return Organization.objects.none()
- 
+
     @action(detail=True, methods=['get'])
     def members(self, request, pk=None):
         user = request.user
@@ -380,8 +385,10 @@ class UserViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not user.is_authenticated:
             return User.objects.none()
-        if user.role == 'super_admin':
+        if _is_platform_admin(user):
             return User.objects.all()
+        if user.role == 'super_admin' and user.organization:
+            return User.objects.filter(organization=user.organization)
         if user.role == 'admin':
             return User.objects.filter(organization=user.organization)
         return User.objects.filter(id=user.id)
@@ -507,10 +514,9 @@ class AppPermissionViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not user.is_authenticated:
             return AppPermission.objects.none()
-        if user.role == 'super_admin':
+        if _is_platform_admin(user):
             return AppPermission.objects.all()
-        if user.role == 'admin' and user.organization:
-            # Admin sees: global (org=None) + their own org's permissions
+        if user.role in ('super_admin', 'admin') and user.organization:
             return AppPermission.objects.filter(
                 Q(organization=None) | Q(organization=user.organization)
             )
@@ -518,10 +524,10 @@ class AppPermissionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        if user.role == 'admin':
-            serializer.save(created_by=user, organization=user.organization)
-        else:
+        if _is_platform_admin(user):
             serializer.save(created_by=user, organization=None)
+        else:
+            serializer.save(created_by=user, organization=user.organization)
 
     def update(self, request, *args, **kwargs):
         err = _check_owner(request, self.get_object(), 'permission')
@@ -554,24 +560,23 @@ class RoleViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not user.is_authenticated:
             return Role.objects.none()
-        if user.role == 'super_admin':
+        if _is_platform_admin(user):
             return Role.objects.all().prefetch_related('permissions')
-        if user.role in ('admin', 'member') and user.organization:
-            # Roles assigned directly to this user (by Super Admin or anyone)
+        if user.role in ('super_admin', 'admin', 'member') and user.organization:
             assigned_ids = UserRole.objects.filter(user=user).values_list('role_id', flat=True)
             return Role.objects.filter(
-                Q(organization=None)           # global roles (Super Admin created)
-                | Q(organization=user.organization)  # this org's roles
-                | Q(id__in=assigned_ids)       # roles personally assigned to this user
+                Q(organization=None)
+                | Q(organization=user.organization)
+                | Q(id__in=assigned_ids)
             ).distinct().prefetch_related('permissions')
         return Role.objects.none()
 
     def perform_create(self, serializer):
         user = self.request.user
-        if user.role == 'admin':
-            serializer.save(created_by=user, organization=user.organization)
-        else:
+        if _is_platform_admin(user):
             serializer.save(created_by=user)
+        else:
+            serializer.save(created_by=user, organization=user.organization)
 
     def update(self, request, *args, **kwargs):
         err = _check_owner(request, self.get_object(), 'role')
@@ -613,8 +618,10 @@ class RecordingViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'super_admin':
+        if _is_platform_admin(user):
             return Recording.objects.all().order_by('-created_at')
+        if user.role == 'super_admin' and user.organization:
+            return Recording.objects.filter(organization=user.organization).order_by('-created_at')
         return Recording.objects.filter(user=user).order_by('-created_at')
 
     def create(self, request, *args, **kwargs):
@@ -648,12 +655,19 @@ class DashboardStatsView(APIView):
  
     def get(self, request):
         user = request.user
-        if user.role == 'super_admin':
+        if _is_platform_admin(user):
             return Response({
                 'total_organizations': Organization.objects.count(),
                 'total_users': User.objects.count(),
                 'total_admins': User.objects.filter(role='admin').count(),
                 'total_members': User.objects.filter(role='member').count(),
+            })
+        elif user.role == 'super_admin' and user.organization:
+            org = user.organization
+            return Response({
+                'organization': org.name,
+                'total_members': User.objects.filter(organization=org).count(),
+                'admins_in_org': User.objects.filter(organization=org, role='admin').count(),
             })
         elif user.role == 'admin':
             org = user.organization

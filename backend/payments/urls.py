@@ -4,6 +4,7 @@ from .views import (
     StripeWebhookView,
     SubscriptionStatusView,
     StorageUsageView,
+    VerifySessionView,
 )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     path('webhook/',                 StripeWebhookView.as_view(),          name='stripe-webhook'),
     path('subscription-status/',     SubscriptionStatusView.as_view(),     name='subscription-status'),
     path('storage-usage/',           StorageUsageView.as_view(),           name='storage-usage'),
+    path('verify-session/',          VerifySessionView.as_view(),          name='verify-session'),
 ]

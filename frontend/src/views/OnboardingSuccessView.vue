@@ -1,51 +1,108 @@
 <template>
   <div class="success-page">
     <div class="success-card">
-      <div class="success-icon">🎉</div>
-      <h1 class="success-title">You're all set!</h1>
-      <p class="success-sub">Your organization has been created and your subscription is active.</p>
 
-      <div class="creds-box" v-if="sessionId">
-        <div class="creds-title">Your Login Details</div>
-        <div class="cred-row">
-          <span class="cred-label">App URL</span>
-          <span class="cred-value">{{ appUrl }}</span>
+      <!-- Loading state -->
+      <template v-if="status === 'loading'">
+        <div class="loading-icon">⏳</div>
+        <h1 class="success-title">Setting up your account…</h1>
+        <p class="success-sub">Please wait while we activate your subscription.</p>
+      </template>
+
+      <!-- Success state -->
+      <template v-else-if="status === 'success' || status === 'already_completed'">
+        <div class="success-icon">🎉</div>
+        <h1 class="success-title">You're all set!</h1>
+        <p class="success-sub">Your organization has been created and your subscription is active.</p>
+
+        <div class="creds-box" v-if="accountInfo.username">
+          <div class="creds-title">Your Login Details</div>
+          <div class="cred-row">
+            <span class="cred-label">Username</span>
+            <span class="cred-value">{{ accountInfo.username }}</span>
+          </div>
+          <div class="cred-row">
+            <span class="cred-label">Email</span>
+            <span class="cred-value">{{ accountInfo.email }}</span>
+          </div>
+          <div class="cred-row">
+            <span class="cred-label">Plan</span>
+            <span class="cred-value" style="text-transform:capitalize">{{ accountInfo.plan }}</span>
+          </div>
+          <div class="cred-row">
+            <span class="cred-label">Password</span>
+            <span class="cred-value">The password you entered during signup</span>
+          </div>
         </div>
-        <div class="cred-row">
-          <span class="cred-label">Note</span>
-          <span class="cred-value">Use the email and password you entered during signup</span>
+
+        <div class="next-steps">
+          <div class="next-title">What to do next</div>
+          <ol class="next-list">
+            <li>Log in with your email and password</li>
+            <li>Go to <strong>Organizations</strong> to view your org settings</li>
+            <li>Go to <strong>Roles</strong> to create custom roles</li>
+            <li>Go to <strong>Users</strong> to invite team members</li>
+            <li>Assign roles and permissions to your members</li>
+          </ol>
         </div>
-      </div>
 
-      <div class="next-steps">
-        <div class="next-title">What to do next</div>
-        <ol class="next-list">
-          <li>Log in with your email and password</li>
-          <li>Go to <strong>Organizations</strong> to view your org settings</li>
-          <li>Go to <strong>Roles</strong> to create custom roles</li>
-          <li>Go to <strong>Users</strong> to invite team members</li>
-          <li>Assign roles and permissions to your members</li>
-        </ol>
-      </div>
+        <button class="btn btn-primary btn-lg" @click="goToLogin">Go to Login →</button>
+      </template>
 
-      <button class="btn btn-primary btn-lg" @click="goToLogin">Go to Login →</button>
+      <!-- Error state -->
+      <template v-else-if="status === 'error'">
+        <div class="error-icon">❌</div>
+        <h1 class="success-title">Something went wrong</h1>
+        <p class="success-sub">{{ errorMessage }}</p>
+        <button class="btn btn-ghost btn-lg" @click="$router.push('/onboarding')">← Try Again</button>
+      </template>
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import axios from 'axios'
 
-const router = useRouter()
-const route  = useRoute()
+const router      = useRouter()
+const route       = useRoute()
+const status      = ref('loading')
+const errorMessage = ref('')
+const accountInfo  = ref({})
 
-const sessionId = computed(() => route.query.session_id || '')
-const appUrl    = computed(() => window.location.origin + '/login')
+const BASE = import.meta.env.VITE_API_URL || '/api'
+
+async function verifySession() {
+  const sessionId = route.query.session_id
+  if (!sessionId) {
+    status.value = 'error'
+    errorMessage.value = 'No session ID found. Please try the onboarding again.'
+    return
+  }
+
+  try {
+    const { data } = await axios.get(`${BASE}/payments/verify-session/?session_id=${sessionId}`)
+    if (data.status === 'success' || data.status === 'already_completed') {
+      accountInfo.value = { username: data.username, email: data.email, plan: data.plan }
+      status.value = 'success'
+    } else if (data.status === 'pending') {
+      status.value = 'error'
+      errorMessage.value = 'Payment is still processing. Please wait a moment and refresh the page.'
+    }
+  } catch (e) {
+    status.value = 'error'
+    const detail = e.response?.data?.error || e.response?.data?.detail || e.message || 'Unknown error'
+    errorMessage.value = `Error ${e.response?.status || ''}: ${detail}`
+  }
+}
 
 function goToLogin() {
   router.push('/login')
 }
+
+onMounted(() => verifySession())
 </script>
 
 <style scoped>

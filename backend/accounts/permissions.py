@@ -18,8 +18,8 @@ class IsAuthenticated(BasePermission):
 
 class CanUseRecording(BasePermission):
     """
-    Super Admin: always allowed.
-    Admin: org must have can_use_recording=True.
+    Platform admin (super_admin with no org): always allowed.
+    Org super admin / admin: org must have can_use_recording=True.
     Member: org must have can_use_recording=True AND user has 'use_video_transcription'
             permission via a role or as a direct permission.
     """
@@ -27,8 +27,8 @@ class CanUseRecording(BasePermission):
         if not request.user.is_authenticated:
             return False
         user = request.user
-        if user.role == 'super_admin':
-            return True
+        if user.role == 'super_admin' and user.organization is None:
+            return True  # platform admin
         if not user.organization or not user.organization.can_use_recording:
             return False
         if user.role == 'admin':
