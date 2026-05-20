@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'accounts',
+    'payments',
 ]
 
 MIDDLEWARE = [
@@ -131,6 +132,17 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 GROQ_API_KEY   = config('GROQ_API_KEY', default='')
+
+# ── Stripe ────────────────────────────────────────────────────────────────────
+STRIPE_SECRET_KEY      = config('STRIPE_SECRET_KEY', default='')
+STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
+STRIPE_WEBHOOK_SECRET  = config('STRIPE_WEBHOOK_SECRET', default='')
+
+STRIPE_PRICE_IDS = {
+    'basic':        {'monthly': config('STRIPE_BASIC_MONTHLY_PRICE_ID', default=''),   'annual': config('STRIPE_BASIC_ANNUAL_PRICE_ID', default=''),   'metered': config('STRIPE_BASIC_METERED_PRICE_ID', default='')},
+    'professional': {'monthly': config('STRIPE_PRO_MONTHLY_PRICE_ID', default=''),     'annual': config('STRIPE_PRO_ANNUAL_PRICE_ID', default=''),     'metered': config('STRIPE_PRO_METERED_PRICE_ID', default='')},
+    'premium':      {'monthly': config('STRIPE_PREMIUM_MONTHLY_PRICE_ID', default=''), 'annual': config('STRIPE_PREMIUM_ANNUAL_PRICE_ID', default=''), 'metered': config('STRIPE_PREMIUM_METERED_PRICE_ID', default='')},
+}
 
 # ── Celery ────────────────────────────────────────────────────────────────────
 CELERY_BROKER_URL       = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')

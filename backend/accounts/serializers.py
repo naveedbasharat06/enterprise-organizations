@@ -3,14 +3,33 @@ from .models import User, Organization, AppPermission, Role, UserRole, UserDirec
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
-    member_count = serializers.SerializerMethodField()
+    member_count       = serializers.SerializerMethodField()
+    storage_used_gb    = serializers.SerializerMethodField()
+    storage_included_gb = serializers.SerializerMethodField()
+    storage_overage_gb = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
-        fields = ['id', 'name', 'description', 'created_at', 'is_active', 'member_count', 'can_use_recording']
+        fields = [
+            'id', 'name', 'description', 'created_at', 'is_active',
+            'member_count', 'can_use_recording',
+            'org_type', 'org_size', 'plan', 'billing_cycle',
+            'storage_included_mb', 'storage_used_mb',
+            'storage_used_gb', 'storage_included_gb', 'storage_overage_gb',
+            'billing_period_start', 'billing_period_end',
+        ]
 
     def get_member_count(self, obj):
         return obj.members.count()
+
+    def get_storage_used_gb(self, obj):
+        return obj.storage_used_gb()
+
+    def get_storage_included_gb(self, obj):
+        return obj.storage_included_gb()
+
+    def get_storage_overage_gb(self, obj):
+        return obj.storage_overage_gb()
 
 
 class UserSerializer(serializers.ModelSerializer):

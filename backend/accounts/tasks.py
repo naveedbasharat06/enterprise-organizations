@@ -206,6 +206,47 @@ def _generate_pdf(recording):
 
 # ── Celery Task ───────────────────────────────────────────────────────────────
 
+def _track_storage(recording, video_size_mb, pdf_size_mb):
+    """Record storage usage and report overage to Stripe if needed."""
+    from .models import StorageUsage
+    from payments.stripe_utils import report_storage_usage
+
+    org = recording.organization
+    if not org:
+        return
+
+    total_mb = video_size_mb + pdf_size_mb
+
+    StorageUsage.objects.create(
+        organization=org,
+        recording=recording,
+        file_size_mb=video_size_mb,
+        file_type=StorageUsage.FILE_RECORDING,
+    )
+    if pdf_size_mb > 0:
+        StorageUsage.objects.create(
+            organization=org,
+            recording=recording,
+            file_size_mb=pdf_size_mb,
+            file_type=StorageUsage.FILE_TRANSCRIPT,
+        )
+
+    org.storage_used_mb = (org.storage_used_mb or 0) + total_mb
+    org.save(update_fields=['storage_used_mb'])
+
+    # Report overage to Stripe if allowance exceeded
+    overage_mb = max(0, org.storage_used_mb - org.storage_included_mb)
+    if overage_mb > 0 and org.stripe_customer_id:
+        unreported = StorageUsage.objects.filter(organization=org, reported_to_stripe=False)
+        unreported_mb = sum(r.file_size_mb for r in unreported)
+        if unreported_mb > 0:
+            try:
+                report_storage_usage(org.stripe_customer_id, org.plan, unreported_mb)
+                unreported.update(reported_to_stripe=True)
+            except Exception:
+                pass
+
+
 @shared_task(bind=True, name='accounts.tasks.process_recording')
 def process_recording(self, recording_id):
     """
@@ -229,8 +270,24 @@ def process_recording(self, recording_id):
         recording.pdf_file = _generate_pdf(recording)
         recording.status = Recording.STATUS_DONE
         recording.error_message = ''
+        recording.save()
+
+        # Track storage usage for billing
+        try:
+            video_size_mb = os.path.getsize(recording.video_file.path) / (1024 * 1024)
+            pdf_size_mb = 0
+            if recording.pdf_file:
+                pdf_path = os.path.join(os.path.dirname(recording.video_file.path),
+                                        '..', recording.pdf_file.name)
+                pdf_path = os.path.normpath(os.path.join(
+                    os.path.dirname(recording.video_file.path), '..', '..', recording.pdf_file.name
+                ))
+                if os.path.exists(pdf_path):
+                    pdf_size_mb = os.path.getsize(pdf_path) / (1024 * 1024)
+            _track_storage(recording, video_size_mb, pdf_size_mb)
+        except Exception:
+            pass
     except Exception as exc:
         recording.status = Recording.STATUS_FAILED
         recording.error_message = str(exc)
-
-    recording.save()
+        recording.save()

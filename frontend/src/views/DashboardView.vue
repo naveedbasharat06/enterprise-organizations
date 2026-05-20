@@ -66,12 +66,18 @@
         <div class="info-box">ℹ️ <strong>Note:</strong> Your organization is managed by your Admin. Contact your Admin if you need to be added or removed.</div>
       </div>
     </template>
+
+    <!-- Storage Widget (shown to all logged-in users with an org) -->
+    <div style="margin-top:20px;" v-if="user.organization">
+      <StorageUsageWidget />
+    </div>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
+import StorageUsageWidget from '@/components/StorageUsageWidget.vue'
 
 const store       = useStore()
 const user        = computed(() => store.getters['auth/user'])

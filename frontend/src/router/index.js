@@ -9,6 +9,21 @@ const routes = [
     meta: { guest: true },
   },
   {
+    path: '/pricing',
+    name: 'Pricing',
+    component: () => import('@/views/PricingView.vue'),
+  },
+  {
+    path: '/onboarding',
+    name: 'Onboarding',
+    component: () => import('@/views/OnboardingView.vue'),
+  },
+  {
+    path: '/onboarding/success',
+    name: 'OnboardingSuccess',
+    component: () => import('@/views/OnboardingSuccessView.vue'),
+  },
+  {
     path: '/forgot-password',
     name: 'ForgotPassword',
     component: () => import('@/views/ForgotPasswordView.vue'),
