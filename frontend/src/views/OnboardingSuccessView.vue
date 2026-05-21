@@ -64,11 +64,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useStore } from 'vuex'
 import axios from 'axios'
 
-const router      = useRouter()
-const route       = useRoute()
-const status      = ref('loading')
+const router       = useRouter()
+const route        = useRoute()
+const store        = useStore()
+const status       = ref('loading')
 const errorMessage = ref('')
 const accountInfo  = ref({})
 
@@ -98,7 +100,10 @@ async function verifySession() {
   }
 }
 
-function goToLogin() {
+async function goToLogin() {
+  // Log out any currently active session so the router guard doesn't
+  // redirect an already-logged-in user back to their dashboard instead of login.
+  await store.dispatch('auth/logout')
   router.push('/login')
 }
 

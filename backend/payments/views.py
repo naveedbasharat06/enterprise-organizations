@@ -10,7 +10,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from accounts.models import Organization, User, StorageUsage, PendingOnboarding
 from .stripe_utils import (
     create_checkout_session, get_billing_dates,
-    PLAN_FEATURES, STORAGE_BY_PLAN,
+    get_metered_price_id, PLAN_FEATURES, STORAGE_BY_PLAN,
 )
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -58,6 +58,18 @@ def _fulfill_onboarding(session, pending):
                 if usage_type == 'metered':
                     metered_item_id = item.id
                     break
+
+            # Metered item not in subscription yet (excluded from checkout to avoid
+            # mixed-interval error) — attach it now. Metered items never trigger
+            # an immediate charge; Stripe bills based on reported usage at period end.
+            if not metered_item_id:
+                metered_price_id = get_metered_price_id(pending.plan)
+                if metered_price_id:
+                    new_item = stripe.SubscriptionItem.create(
+                        subscription=subscription_id,
+                        price=metered_price_id,
+                    )
+                    metered_item_id = _stripe_attr(new_item, 'id', '')
         except Exception:
             pass
 
@@ -86,6 +98,10 @@ def _fulfill_onboarding(session, pending):
     )
     user.password = pending.password_hash
     user.save()
+
+    # Link the org back to its owner now that the user exists
+    org.owner = user
+    org.save(update_fields=['owner'])
 
     pending.is_completed = True
     pending.save(update_fields=['is_completed'])

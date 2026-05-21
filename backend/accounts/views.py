@@ -267,28 +267,112 @@ class ResetPasswordConfirmView(APIView):
         return Response({'message': 'Password reset successfully. You can now log in.'})
 
 
+# How many orgs each plan allows
+MAX_ORGS_BY_PLAN = {'basic': 1, 'professional': 1, 'premium': 5}
+
+
 # ─── ORGANIZATION VIEWSET ────────────────────────────────────────────────────
- 
+
 class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
- 
+
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'members', 'add_member', 'remove_member']:
-            return [IsAdminOrSuperAdmin()]
-        return [IsSuperAdmin()]
- 
+        if self.action == 'toggle_recording':
+            return [IsSuperAdmin()]
+        return [IsAdminOrSuperAdmin()]
+
     def get_queryset(self):
+        from django.db.models import Q
         user = self.request.user
         if not user.is_authenticated:
             return Organization.objects.none()
         if _is_platform_admin(user):
             return Organization.objects.all()
-        if user.role == 'super_admin' and user.organization:
-            return Organization.objects.filter(id=user.organization.id)
-        if user.role == 'admin' and user.organization:
-            return Organization.objects.filter(id=user.organization.id)
+        if user.role in ('super_admin', 'admin'):
+            # See all orgs they own, plus their currently active org
+            q = Q(owner=user)
+            if user.organization_id:
+                q |= Q(id=user.organization_id)
+            return Organization.objects.filter(q).distinct()
         return Organization.objects.none()
+
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        if _is_platform_admin(user):
+            return super().create(request, *args, **kwargs)
+        # Org admins: check plan limit before creating additional orgs
+        primary = Organization.objects.filter(owner=user).order_by('created_at').first()
+        if not primary:
+            return Response(
+                {'error': 'Complete subscription onboarding first to create organizations.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        max_orgs = MAX_ORGS_BY_PLAN.get(primary.plan, 1)
+        owned_count = Organization.objects.filter(owner=user).count()
+        if owned_count >= max_orgs:
+            if primary.plan != 'premium':
+                return Response(
+                    {'error': f'Your {primary.plan.capitalize()} plan allows only 1 organization. Upgrade to Premium to create up to {MAX_ORGS_BY_PLAN["premium"]}.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            return Response(
+                {'error': f'Premium plan allows up to {max_orgs} organizations. You have reached the limit.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        org = serializer.save(
+            owner=user,
+            plan=primary.plan,
+            billing_cycle=primary.billing_cycle,
+            stripe_customer_id=primary.stripe_customer_id,
+            stripe_subscription_id=primary.stripe_subscription_id,
+            stripe_metered_item_id=primary.stripe_metered_item_id,
+            storage_included_mb=primary.storage_included_mb,
+            can_use_recording=primary.can_use_recording,
+            is_active=True,
+        )
+        return Response(self.get_serializer(org).data, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, *args, **kwargs):
+        org = self.get_object()
+        if not _is_platform_admin(request.user) and org.stripe_subscription_id:
+            return Response(
+                {'error': 'Cannot delete your primary organization. Cancel your subscription first.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'])
+    def switch_org(self, request, pk=None):
+        """Switch the requesting user's active organization to this one (must be owned by them)."""
+        org = self.get_object()
+        user = request.user
+        if not _is_platform_admin(user) and org.owner_id != user.id:
+            return Response({'error': 'You can only switch to organizations you own.'}, status=status.HTTP_403_FORBIDDEN)
+        user.organization = org
+        user.save(update_fields=['organization'])
+        from .serializers import UserSerializer
+        return Response(UserSerializer(user).data)
+
+    @action(detail=False, methods=['get'])
+    def my_limits(self, request):
+        """Returns org creation limits for the current user."""
+        user = request.user
+        if _is_platform_admin(user):
+            return Response({'plan': 'platform', 'max_orgs': None, 'owned_count': 0, 'can_add_more': True})
+        primary = Organization.objects.filter(owner=user).order_by('created_at').first()
+        if not primary:
+            return Response({'plan': None, 'max_orgs': 1, 'owned_count': 0, 'can_add_more': False})
+        max_orgs = MAX_ORGS_BY_PLAN.get(primary.plan, 1)
+        owned_count = Organization.objects.filter(owner=user).count()
+        return Response({
+            'plan': primary.plan,
+            'max_orgs': max_orgs,
+            'owned_count': owned_count,
+            'can_add_more': owned_count < max_orgs,
+        })
 
     @action(detail=True, methods=['get'])
     def members(self, request, pk=None):

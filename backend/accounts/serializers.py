@@ -3,10 +3,11 @@ from .models import User, Organization, AppPermission, Role, UserRole, UserDirec
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
-    member_count       = serializers.SerializerMethodField()
-    storage_used_gb    = serializers.SerializerMethodField()
+    member_count        = serializers.SerializerMethodField()
+    storage_used_gb     = serializers.SerializerMethodField()
     storage_included_gb = serializers.SerializerMethodField()
-    storage_overage_gb = serializers.SerializerMethodField()
+    storage_overage_gb  = serializers.SerializerMethodField()
+    is_owner            = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
@@ -17,7 +18,9 @@ class OrganizationSerializer(serializers.ModelSerializer):
             'storage_included_mb', 'storage_used_mb',
             'storage_used_gb', 'storage_included_gb', 'storage_overage_gb',
             'billing_period_start', 'billing_period_end',
+            'owner', 'is_owner',
         ]
+        read_only_fields = ['owner']
 
     def get_member_count(self, obj):
         return obj.members.count()
@@ -31,21 +34,31 @@ class OrganizationSerializer(serializers.ModelSerializer):
     def get_storage_overage_gb(self, obj):
         return obj.storage_overage_gb()
 
+    def get_is_owner(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        return obj.owner_id == request.user.id
+
 
 class UserSerializer(serializers.ModelSerializer):
-    organization_name = serializers.CharField(source='organization.name', read_only=True)
+    organization_name     = serializers.CharField(source='organization.name', read_only=True)
     org_recording_enabled = serializers.SerializerMethodField()
-    password = serializers.CharField(write_only=True, required=False)
+    org_plan              = serializers.SerializerMethodField()
+    password              = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name',
                   'role', 'organization', 'organization_name', 'org_recording_enabled',
-                  'password', 'date_joined']
+                  'org_plan', 'password', 'date_joined']
         read_only_fields = ['date_joined']
 
     def get_org_recording_enabled(self, obj):
         return obj.organization.can_use_recording if obj.organization else False
+
+    def get_org_plan(self, obj):
+        return obj.organization.plan if obj.organization else None
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)

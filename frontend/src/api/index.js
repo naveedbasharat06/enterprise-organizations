@@ -82,6 +82,8 @@ export const addMemberToOrg = (id, user_id) =>
   api.post(`/organizations/${id}/add_member/`, { user_id })
 export const removeMemberFromOrg = (id, user_id) =>
   api.post(`/organizations/${id}/remove_member/`, { user_id })
+export const switchOrg = id => api.post(`/organizations/${id}/switch_org/`)
+export const getOrgLimits = () => api.get('/organizations/my_limits/')
 
 // ── USERS ─────────────────────────────────────────────────────────────────
 export const getUsers = () => api.get('/users/')

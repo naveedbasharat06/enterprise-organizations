@@ -1,25 +1,32 @@
 import {
   getOrgs, createOrg, updateOrg, deleteOrg,
-  getOrgMembers, addMemberToOrg, removeMemberFromOrg
+  getOrgMembers, addMemberToOrg, removeMemberFromOrg,
+  switchOrg, getOrgLimits,
 } from '@/api'
 
 export default {
   namespaced: true,
   state: () => ({
     list: [],
+    limits: null,
     loading: false,
     error: null,
   }),
   getters: {
-    list: s => s.list,
-    loading: s => s.loading,
-    error: s => s.error,
+    list:       s => s.list,
+    limits:     s => s.limits,
+    loading:    s => s.loading,
+    error:      s => s.error,
+    ownedOrgs:  s => s.list.filter(o => o.is_owner),
+    canAddMore: s => s.limits?.can_add_more ?? false,
+    isPremium:  s => s.limits?.plan === 'premium',
   },
   mutations: {
-    SET_LIST(state, list) { state.list = list },
-    SET_LOADING(state, v) { state.loading = v },
-    SET_ERROR(state, e) { state.error = e },
-    ADD(state, org) { state.list.push(org) },
+    SET_LIST(state, list)     { state.list = list },
+    SET_LIMITS(state, limits) { state.limits = limits },
+    SET_LOADING(state, v)     { state.loading = v },
+    SET_ERROR(state, e)       { state.error = e },
+    ADD(state, org)           { state.list.push(org) },
     UPDATE(state, org) {
       const i = state.list.findIndex(o => o.id === org.id)
       if (i !== -1) state.list.splice(i, 1, org)
@@ -37,6 +44,12 @@ export default {
       } finally {
         commit('SET_LOADING', false)
       }
+    },
+    async fetchLimits({ commit }) {
+      try {
+        const { data } = await getOrgLimits()
+        commit('SET_LIMITS', data)
+      } catch {}
     },
     async create({ commit }, payload) {
       const { data } = await createOrg(payload)
@@ -60,6 +73,15 @@ export default {
     },
     removeMember(_, { orgId, userId }) {
       return removeMemberFromOrg(orgId, userId)
+    },
+    async switchOrg({ dispatch }, orgId) {
+      const { data: user } = await switchOrg(orgId)
+      // Update auth store so sidebar and all views reflect the new active org
+      dispatch('auth/updateUser', user, { root: true })
+      // Re-fetch orgs and limits scoped to new active org
+      await dispatch('fetch')
+      await dispatch('fetchLimits')
+      return user
     },
   },
 }

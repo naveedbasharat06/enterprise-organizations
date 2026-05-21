@@ -72,6 +72,12 @@ class Organization(models.Model):
     is_active         = models.BooleanField(default=True)
     can_use_recording = models.BooleanField(default=False)
 
+    # The admin user who created this org via Stripe onboarding
+    owner = models.ForeignKey(
+        'User', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='owned_organizations'
+    )
+
     # Classification
     org_type = models.CharField(max_length=50, choices=ORG_TYPE_CHOICES, default=ORG_TYPE_OTHER)
     org_size = models.CharField(max_length=20, choices=ORG_SIZE_CHOICES, blank=True)
