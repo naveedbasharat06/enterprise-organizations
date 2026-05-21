@@ -4,7 +4,15 @@
       <div class="login-logo">⬡ RoleBase</div>
       <div class="login-sub">Role-based dashboard system</div>
 
-      <div v-if="error" class="error-msg">{{ error }}</div>
+      <div v-if="pendingVerification" class="verification-notice">
+        <div class="notice-icon">🔐</div>
+        <div class="notice-text">
+          <strong>Verification Pending</strong>
+          <p>Your organization is pending Super Admin approval. You cannot log in until verified.</p>
+        </div>
+      </div>
+
+      <div v-else-if="error" class="error-msg">{{ error }}</div>
 
       <div class="form-group">
         <label>Username</label>
@@ -39,9 +47,10 @@ import { useRouter } from 'vue-router'
 const store  = useStore()
 const router = useRouter()
 
-const form    = reactive({ username: '', password: '' })
-const loading = computed(() => store.getters['auth/loading'])
-const error   = computed(() => store.getters['auth/error'])
+const form                = reactive({ username: '', password: '' })
+const loading             = computed(() => store.getters['auth/loading'])
+const error               = computed(() => store.getters['auth/error'])
+const pendingVerification = computed(() => store.getters['auth/pendingVerification'])
 
 async function submit() {
   const ok = await store.dispatch('auth/login', form)
@@ -63,4 +72,13 @@ async function submit() {
 .login-sub  { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; }
 .forgot-link { font-size: 13px; color: var(--accent); text-decoration: none; }
 .forgot-link:hover { text-decoration: underline; }
+
+.verification-notice {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: rgba(245,158,11,.08); border: 1.5px solid #f59e0b;
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;
+}
+.notice-icon { font-size: 20px; flex-shrink: 0; }
+.notice-text strong { display: block; font-size: 13px; font-weight: 700; color: #f59e0b; margin-bottom: 4px; }
+.notice-text p { font-size: 12px; color: var(--text-muted); margin: 0; line-height: 1.5; }
 </style>

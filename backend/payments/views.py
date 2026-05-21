@@ -88,6 +88,7 @@ def _fulfill_onboarding(session, pending):
         billing_period_end=period_end,
         can_use_recording=features.get('can_use_recording', False),
         is_active=True,
+        is_verified=False,
     )
 
     user = User(

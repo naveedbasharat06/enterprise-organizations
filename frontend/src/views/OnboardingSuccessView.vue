@@ -12,11 +12,11 @@
       <!-- Success state -->
       <template v-else-if="status === 'success' || status === 'already_completed'">
         <div class="success-icon">🎉</div>
-        <h1 class="success-title">You're all set!</h1>
+        <h1 class="success-title">Payment Successful!</h1>
         <p class="success-sub">Your organization has been created and your subscription is active.</p>
 
         <div class="creds-box" v-if="accountInfo.username">
-          <div class="creds-title">Your Login Details</div>
+          <div class="creds-title">Your Account Details</div>
           <div class="cred-row">
             <span class="cred-label">Username</span>
             <span class="cred-value">{{ accountInfo.username }}</span>
@@ -35,18 +35,16 @@
           </div>
         </div>
 
-        <div class="next-steps">
-          <div class="next-title">What to do next</div>
-          <ol class="next-list">
-            <li>Log in with your email and password</li>
-            <li>Go to <strong>Organizations</strong> to view your org settings</li>
-            <li>Go to <strong>Roles</strong> to create custom roles</li>
-            <li>Go to <strong>Users</strong> to invite team members</li>
-            <li>Assign roles and permissions to your members</li>
-          </ol>
+        <!-- Verification notice -->
+        <div class="verification-notice">
+          <div class="notice-icon">🔐</div>
+          <div class="notice-text">
+            <strong>Verification Required</strong>
+            <p>Your account is pending Super Admin approval. You will be able to log in once your organization has been verified.</p>
+          </div>
         </div>
 
-        <button class="btn btn-primary btn-lg" @click="goToLogin">Go to Login →</button>
+        <button class="btn btn-ghost btn-lg" @click="goToLogin">Go to Login Page →</button>
       </template>
 
       <!-- Error state -->
@@ -131,4 +129,13 @@ onMounted(() => verifySession())
 .next-list strong { color: var(--text); }
 
 .btn-lg { padding: 14px 32px; font-size: 16px; width: 100%; }
+
+.verification-notice {
+  display: flex; align-items: flex-start; gap: 14px;
+  background: rgba(245,158,11,.08); border: 1.5px solid #f59e0b;
+  border-radius: 12px; padding: 16px 20px; text-align: left; margin-bottom: 24px;
+}
+.notice-icon { font-size: 24px; flex-shrink: 0; }
+.notice-text strong { display: block; font-size: 14px; font-weight: 700; color: #f59e0b; margin-bottom: 6px; }
+.notice-text p { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5; }
 </style>

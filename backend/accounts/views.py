@@ -47,6 +47,11 @@ class LoginView(APIView):
         )
         if not user:
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+        if user.organization and not user.organization.is_verified:
+            return Response(
+                {'error': 'Your organization is pending Super Admin verification. You will be notified once approved.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         refresh = RefreshToken.for_user(user)
         return Response({
             'access': str(refresh.access_token),
@@ -355,6 +360,22 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         user.save(update_fields=['organization'])
         from .serializers import UserSerializer
         return Response(UserSerializer(user).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperAdmin])
+    def approve(self, request, pk=None):
+        org = self.get_object()
+        org.is_verified = True
+        org.is_active = True
+        org.save(update_fields=['is_verified', 'is_active'])
+        return Response({'message': f'"{org.name}" has been approved. Members can now log in.'})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperAdmin])
+    def reject(self, request, pk=None):
+        org = self.get_object()
+        org.is_verified = False
+        org.is_active = False
+        org.save(update_fields=['is_verified', 'is_active'])
+        return Response({'message': f'"{org.name}" has been rejected and deactivated.'})
 
     @action(detail=False, methods=['get'])
     def my_limits(self, request):

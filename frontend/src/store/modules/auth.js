@@ -6,35 +6,41 @@ export default {
     user: null,
     loading: false,
     error: null,
+    pendingVerification: false,
   }),
   getters: {
-    isLoggedIn:  s => !!s.user,
-    isSuperAdmin: s => s.user?.role === 'super_admin',
-    isAdmin:     s => ['super_admin', 'admin'].includes(s.user?.role),
-    isMember:    s => s.user?.role === 'member',
-    user:        s => s.user,
-    loading:     s => s.loading,
-    error:       s => s.error,
+    isLoggedIn:          s => !!s.user,
+    isSuperAdmin:        s => s.user?.role === 'super_admin',
+    isAdmin:             s => ['super_admin', 'admin'].includes(s.user?.role),
+    isMember:            s => s.user?.role === 'member',
+    user:                s => s.user,
+    loading:             s => s.loading,
+    error:               s => s.error,
+    pendingVerification: s => s.pendingVerification,
   },
   mutations: {
-    SET_USER(state, user)    { state.user = user },
-    SET_LOADING(state, v)    { state.loading = v },
-    SET_ERROR(state, e)      { state.error = e },
+    SET_USER(state, user)                { state.user = user },
+    SET_LOADING(state, v)                { state.loading = v },
+    SET_ERROR(state, e)                  { state.error = e },
+    SET_PENDING_VERIFICATION(state, v)   { state.pendingVerification = v },
   },
   actions: {
     async login({ commit }, { username, password }) {
       commit('SET_LOADING', true)
       commit('SET_ERROR', null)
+      commit('SET_PENDING_VERIFICATION', false)
       try {
         const { data } = await login(username, password)
-        // access token lives in memory only (XSS-safe)
         updateAccessToken(data.access)
-        // refresh token persists across page reloads
         localStorage.setItem('refreshToken', data.refresh)
         commit('SET_USER', data.user)
         return true
       } catch (e) {
-        commit('SET_ERROR', e.response?.data?.error || 'Login failed')
+        if (e.response?.status === 403) {
+          commit('SET_PENDING_VERIFICATION', true)
+        } else {
+          commit('SET_ERROR', e.response?.data?.error || 'Login failed')
+        }
         return false
       } finally {
         commit('SET_LOADING', false)

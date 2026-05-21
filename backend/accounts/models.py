@@ -70,6 +70,7 @@ class Organization(models.Model):
     description       = models.TextField(blank=True)
     created_at        = models.DateTimeField(auto_now_add=True)
     is_active         = models.BooleanField(default=True)
+    is_verified       = models.BooleanField(default=False)
     can_use_recording = models.BooleanField(default=False)
 
     # The admin user who created this org via Stripe onboarding
