@@ -443,6 +443,17 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         return Response({'message': f'{target.username} removed from {org.name}'})
 
     @action(detail=True, methods=['post'], permission_classes=[IsSuperAdmin])
+    def toggle_active(self, request, pk=None):
+        org = self.get_object()
+        org.is_active = not org.is_active
+        org.save(update_fields=['is_active'])
+        state = 'activated' if org.is_active else 'suspended'
+        return Response({
+            'message': f'"{org.name}" has been {state}.',
+            'is_active': org.is_active,
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperAdmin])
     def toggle_recording(self, request, pk=None):
         org = self.get_object()
         org.can_use_recording = not org.can_use_recording

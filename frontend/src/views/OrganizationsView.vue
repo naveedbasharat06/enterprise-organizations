@@ -106,6 +106,14 @@
                   <template v-if="isSuperAdmin">
                     <button
                       class="btn btn-sm"
+                      :class="org.is_active ? 'btn-warning' : 'btn-success'"
+                      :disabled="togglingActive === org.id"
+                      @click="handleToggleActive(org)"
+                    >
+                      {{ togglingActive === org.id ? '…' : org.is_active ? 'Suspend' : 'Activate' }}
+                    </button>
+                    <button
+                      class="btn btn-sm"
                       :class="org.can_use_recording ? 'btn-danger' : 'btn-success'"
                       @click="handleToggleRecording(org)"
                     >
@@ -195,7 +203,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
-import { toggleOrgRecording, approveOrg, rejectOrg } from '@/api'
+import { toggleOrgRecording, toggleOrgActive, approveOrg, rejectOrg } from '@/api'
 
 const store  = useStore()
 const router = useRouter()
@@ -208,9 +216,10 @@ const canAddMore   = computed(() => store.getters['orgs/canAddMore'])
 const currentOrgId = computed(() => user.value?.organization)
 const pendingOrgs  = computed(() => orgs.value.filter(o => !o.is_verified && o.is_active))
 
-const modal    = reactive({ show: false, type: '', data: {}, error: null, loading: false })
-const switching = ref(null)
-const approving = ref(null)
+const modal         = reactive({ show: false, type: '', data: {}, error: null, loading: false })
+const switching     = ref(null)
+const approving     = ref(null)
+const togglingActive = ref(null)
 
 function formatDate(dt) {
   return dt ? new Date(dt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
@@ -302,6 +311,21 @@ async function handleReject(org) {
   } catch (e) {
     store.dispatch('showToast', { message: e.response?.data?.error || 'Rejection failed', type: 'error' })
   } finally { approving.value = null }
+}
+
+async function handleToggleActive(org) {
+  const action = org.is_active ? 'suspend' : 'activate'
+  if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} "${org.name}"?`)) return
+  togglingActive.value = org.id
+  try {
+    const { data } = await toggleOrgActive(org.id)
+    org.is_active = data.is_active
+    store.dispatch('showToast', { message: data.message, type: data.is_active ? 'success' : 'error' })
+  } catch (e) {
+    store.dispatch('showToast', { message: e.response?.data?.error || 'Failed to update status', type: 'error' })
+  } finally {
+    togglingActive.value = null
+  }
 }
 
 async function handleToggleRecording(org) {

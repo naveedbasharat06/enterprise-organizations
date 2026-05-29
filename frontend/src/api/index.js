@@ -122,6 +122,7 @@ export const uploadRecording = (formData) =>
   api.post('/recordings/', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 export const deleteRecording = id => api.delete(`/recordings/${id}/`)
 export const toggleOrgRecording = id => api.post(`/organizations/${id}/toggle_recording/`)
+export const toggleOrgActive    = id => api.post(`/organizations/${id}/toggle_active/`)
 
 // ── PAYMENTS (public — no auth token needed) ──────────────────────────────
 const publicApi = axios.create({ baseURL: BASE })

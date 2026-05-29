@@ -35,6 +35,8 @@ body {
 .btn-primary:hover  { background: #7d75ff; transform: translateY(-1px); }
 .btn-danger   { background: var(--danger); color: #fff; }
 .btn-danger:hover   { background: #ff6b84; }
+.btn-warning  { background: #f59e0b; color: #0e0f14; }
+.btn-warning:hover  { background: #fbbf24; }
 .btn-success  { background: var(--accent2); color: #0e0f14; }
 .btn-success:hover  { background: #00e8bb; }
 .btn-ghost    { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
