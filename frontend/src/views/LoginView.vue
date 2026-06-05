@@ -35,6 +35,13 @@
       <div style="margin-top:12px;font-size:12px;color:var(--text-muted);text-align:center;">
         superadmin / Admin@1234 &nbsp;|&nbsp; admin_tech / Admin@1234 &nbsp;|&nbsp; john_member / Admin@1234
       </div>
+
+      <div class="login-divider"></div>
+
+      <div class="login-public-links">
+        <router-link to="/pricing" class="public-link">💎 View Pricing</router-link>
+        <router-link to="/onboarding" class="public-link">🚀 Get Started</router-link>
+      </div>
     </div>
   </div>
 </template>
@@ -81,4 +88,9 @@ async function submit() {
 .notice-icon { font-size: 20px; flex-shrink: 0; }
 .notice-text strong { display: block; font-size: 13px; font-weight: 700; color: #f59e0b; margin-bottom: 4px; }
 .notice-text p { font-size: 12px; color: var(--text-muted); margin: 0; line-height: 1.5; }
+
+.login-divider { height: 1px; background: var(--border); margin: 20px 0; }
+.login-public-links { display: flex; justify-content: center; gap: 24px; }
+.public-link { font-size: 13px; color: var(--accent); text-decoration: none; font-weight: 500; }
+.public-link:hover { text-decoration: underline; }
 </style>

@@ -89,19 +89,6 @@
           </div>
         </router-link>
 
-        <div class="nav-divider"></div>
-
-        <router-link to="/pricing" custom v-slot="{ navigate, isActive }">
-          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
-            <span class="nav-icon">💎</span> Pricing
-          </div>
-        </router-link>
-
-        <router-link to="/onboarding" custom v-slot="{ navigate, isActive }">
-          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
-            <span class="nav-icon">🚀</span> Onboarding
-          </div>
-        </router-link>
       </nav>
 
       <div class="sidebar-footer">
