@@ -45,10 +45,10 @@
 
         <button
           class="plan-btn"
-          :class="{ 'btn-primary': plan.popular, 'btn-ghost': !plan.popular, 'btn-enterprise': plan.key === 'premium' }"
+          :class="{ 'btn-primary': plan.popular, 'btn-ghost': !plan.popular }"
           @click.stop="handleCta(plan)"
         >
-          {{ plan.key === 'premium' ? 'Contact Us' : 'Get Started' }}
+          Get Started
         </button>
       </div>
     </div>
@@ -75,14 +75,10 @@ function toggleBilling() {
 }
 
 function selectPlan(key) {
-  if (key !== 'premium') selectedPlan.value = key
+  selectedPlan.value = key
 }
 
 function handleCta(plan) {
-  if (plan.key === 'premium') {
-    window.location.href = 'mailto:sales@rolebase.com?subject=Premium Plan Enquiry'
-    return
-  }
   router.push({ path: '/onboarding', query: { plan: plan.key, billing: billing.value } })
 }
 
