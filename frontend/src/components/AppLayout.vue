@@ -88,6 +88,20 @@
             <span class="nav-icon">👤</span> My Profile
           </div>
         </router-link>
+
+        <div class="nav-divider"></div>
+
+        <router-link to="/pricing" custom v-slot="{ navigate, isActive }">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+            <span class="nav-icon">💎</span> Pricing
+          </div>
+        </router-link>
+
+        <router-link to="/onboarding" custom v-slot="{ navigate, isActive }">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+            <span class="nav-icon">🚀</span> Onboarding
+          </div>
+        </router-link>
       </nav>
 
       <div class="sidebar-footer">
@@ -223,6 +237,7 @@ onMounted(() => {
 .nav-item:hover, .nav-item.active { background: rgba(108,99,255,.12); color: var(--text); }
 .nav-item.active { color: var(--accent); font-weight: 500; }
 .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+.nav-divider { height: 1px; background: var(--border); margin: 8px 12px; }
 .sidebar-footer { padding: 16px; border-top: 1px solid var(--border); }
 .main { margin-left: 240px; flex: 1; padding: 32px; }
 </style>
