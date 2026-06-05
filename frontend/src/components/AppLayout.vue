@@ -39,8 +39,8 @@
       </div>
 
       <nav class="sidebar-nav">
-        <router-link to="/" custom v-slot="{ navigate, isActive }">
-          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+        <router-link to="/" custom v-slot="{ navigate, isExactActive }">
+          <div class="nav-item" :class="{ active: isExactActive }" @click="navigate">
             <span class="nav-icon">📊</span> Dashboard
           </div>
         </router-link>
