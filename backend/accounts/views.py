@@ -798,3 +798,72 @@ class DashboardStatsView(APIView):
                 'role': user.role,
                 'username': user.username,
             })
+
+
+# ─── AI ONBOARDING ASSISTANT ─────────────────────────────────────────────────
+
+SYSTEM_PROMPT = """You are RoleBase's friendly onboarding assistant. Help users choose the right plan and understand the platform. Keep answers short and clear (2-4 sentences max).
+
+RoleBase Plans:
+- Basic ($20/month or $16/month billed annually): Up to 20 users, custom roles & permissions, user invitations via email, password reset via OTP, 5GB storage.
+- Professional ($32/month or $26/month billed annually): Everything in Basic + unlimited users, screen recording, AI transcription, PDF export, 20GB storage, 500MB per file.
+- Premium ($80/month or $64/month billed annually): Everything in Professional + up to 5 organizations, audit logs, 2GB per file, custom branding, API access, priority support, 50GB storage.
+
+Answer only questions about RoleBase features, plans, and onboarding. If asked anything unrelated, politely redirect to RoleBase topics."""
+
+
+class OnboardingChatView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        import requests as http_requests
+        user_message = request.data.get('message', '').strip()
+        history      = request.data.get('history', [])
+
+        if not user_message:
+            return Response({'error': 'Message is required.'}, status=400)
+
+        api_key = settings.HUGGINGFACE_API_KEY
+        if not api_key:
+            return Response({'error': 'AI service not configured.'}, status=500)
+
+        # Build prompt in Mistral instruct format
+        prompt = f"<s>[INST] {SYSTEM_PROMPT} [/INST]</s>\n"
+        for msg in history[-6:]:  # keep last 6 messages for context
+            if msg.get('role') == 'user':
+                prompt += f"[INST] {msg['content']} [/INST]"
+            else:
+                prompt += f" {msg['content']}</s>\n"
+        prompt += f"[INST] {user_message} [/INST]"
+
+        try:
+            resp = http_requests.post(
+                'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3',
+                headers={'Authorization': f'Bearer {api_key}'},
+                json={
+                    'inputs': prompt,
+                    'parameters': {
+                        'max_new_tokens': 200,
+                        'temperature': 0.6,
+                        'return_full_text': False,
+                        'stop': ['[INST]', '</s>'],
+                    },
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            result = resp.json()
+
+            if isinstance(result, list) and result:
+                reply = result[0].get('generated_text', '').strip()
+            elif isinstance(result, dict) and 'error' in result:
+                return Response({'error': result['error']}, status=503)
+            else:
+                reply = 'Sorry, I could not generate a response. Please try again.'
+
+            return Response({'reply': reply})
+
+        except http_requests.exceptions.Timeout:
+            return Response({'error': 'AI service timed out. Please try again.'}, status=503)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)

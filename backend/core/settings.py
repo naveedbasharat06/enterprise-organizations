@@ -130,8 +130,9 @@ STORAGES = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
-GROQ_API_KEY   = config('GROQ_API_KEY', default='')
+OPENAI_API_KEY      = config('OPENAI_API_KEY', default='')
+GROQ_API_KEY        = config('GROQ_API_KEY', default='')
+HUGGINGFACE_API_KEY = config('HUGGINGFACE_API_KEY', default='')
 
 # ── Stripe ────────────────────────────────────────────────────────────────────
 STRIPE_SECRET_KEY      = config('STRIPE_SECRET_KEY', default='')

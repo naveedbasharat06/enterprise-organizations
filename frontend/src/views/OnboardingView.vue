@@ -148,13 +148,62 @@
         Already have an account? <a href="/login">Sign in</a> · <a href="/pricing">View pricing</a>
       </div>
     </div>
+
+    <!-- AI Assistant Chat Widget -->
+    <div class="chat-widget">
+      <!-- Chat Panel -->
+      <div v-if="chatOpen" class="chat-panel">
+        <div class="chat-header">
+          <div class="chat-header-info">
+            <div class="chat-avatar">🤖</div>
+            <div>
+              <div class="chat-name">RoleBase Assistant</div>
+              <div class="chat-status">Ask me anything about plans & features</div>
+            </div>
+          </div>
+          <button class="chat-close" @click="chatOpen = false">✕</button>
+        </div>
+
+        <div class="chat-messages" ref="messagesEl">
+          <div class="chat-welcome">
+            <p>👋 Hi! I'm here to help you choose the right plan. Ask me anything!</p>
+          </div>
+          <div v-for="(msg, i) in messages" :key="i" class="chat-msg" :class="msg.role">
+            <div class="chat-bubble">{{ msg.content }}</div>
+          </div>
+          <div v-if="aiLoading" class="chat-msg assistant">
+            <div class="chat-bubble typing">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-input-row">
+          <input
+            v-model="chatInput"
+            class="chat-input"
+            placeholder="e.g. Which plan includes recording?"
+            @keyup.enter="sendMessage"
+            :disabled="aiLoading"
+          />
+          <button class="chat-send" @click="sendMessage" :disabled="aiLoading || !chatInput.trim()">
+            ➤
+          </button>
+        </div>
+      </div>
+
+      <!-- Bubble Button -->
+      <button class="chat-bubble-btn" @click="chatOpen = !chatOpen" :title="chatOpen ? 'Close' : 'Ask AI Assistant'">
+        {{ chatOpen ? '✕' : '💬' }}
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { createCheckoutSession } from '@/api/index.js'
+import { createCheckoutSession, onboardingChat } from '@/api/index.js'
 
 const route   = useRoute()
 const step    = ref(1)
@@ -249,6 +298,39 @@ async function submitAndPay() {
 onMounted(() => {
   if (route.query.cancelled) error.value = 'Payment was cancelled. You can try again below.'
 })
+
+// ── AI Chat ──────────────────────────────────────────────────────────────────
+const chatOpen   = ref(false)
+const chatInput  = ref('')
+const aiLoading  = ref(false)
+const messages   = ref([])
+const messagesEl = ref(null)
+
+async function sendMessage() {
+  const text = chatInput.value.trim()
+  if (!text || aiLoading.value) return
+
+  messages.value.push({ role: 'user', content: text })
+  chatInput.value = ''
+  aiLoading.value = true
+  await nextTick()
+  scrollToBottom()
+
+  try {
+    const { data } = await onboardingChat(text, messages.value.slice(-6))
+    messages.value.push({ role: 'assistant', content: data.reply })
+  } catch (e) {
+    messages.value.push({ role: 'assistant', content: 'Sorry, something went wrong. Please try again.' })
+  } finally {
+    aiLoading.value = false
+    await nextTick()
+    scrollToBottom()
+  }
+}
+
+function scrollToBottom() {
+  if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight
+}
 </script>
 
 <style scoped>
@@ -318,4 +400,54 @@ onMounted(() => {
 
 .ob-footer { text-align: center; font-size: 13px; color: var(--text-muted); }
 .ob-footer a { color: var(--accent); text-decoration: none; }
+
+/* ── Chat Widget ── */
+.chat-widget { position: fixed; bottom: 28px; right: 28px; z-index: 1000; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+
+.chat-bubble-btn {
+  width: 56px; height: 56px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--accent); color: #fff; font-size: 24px;
+  box-shadow: 0 4px 20px rgba(108,99,255,.4); transition: transform .2s;
+}
+.chat-bubble-btn:hover { transform: scale(1.08); }
+
+.chat-panel {
+  width: 340px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; box-shadow: 0 8px 40px rgba(0,0,0,.3);
+  display: flex; flex-direction: column; overflow: hidden; max-height: 480px;
+}
+
+.chat-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: var(--accent); }
+.chat-header-info { display: flex; align-items: center; gap: 10px; }
+.chat-avatar { font-size: 24px; }
+.chat-name { font-size: 14px; font-weight: 700; color: #fff; }
+.chat-status { font-size: 11px; color: rgba(255,255,255,.75); }
+.chat-close { background: none; border: none; color: #fff; font-size: 16px; cursor: pointer; opacity: .8; }
+.chat-close:hover { opacity: 1; }
+
+.chat-messages { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.chat-welcome p { font-size: 13px; color: var(--text-muted); text-align: center; }
+
+.chat-msg { display: flex; }
+.chat-msg.user { justify-content: flex-end; }
+.chat-msg.assistant { justify-content: flex-start; }
+
+.chat-bubble {
+  max-width: 80%; padding: 9px 13px; border-radius: 14px;
+  font-size: 13px; line-height: 1.5;
+}
+.chat-msg.user .chat-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+.chat-msg.assistant .chat-bubble { background: var(--bg); color: var(--text); border-bottom-left-radius: 4px; }
+
+.typing { display: flex; gap: 4px; align-items: center; padding: 12px 16px; }
+.typing span { width: 7px; height: 7px; background: var(--text-muted); border-radius: 50%; animation: bounce 1.2s infinite; }
+.typing span:nth-child(2) { animation-delay: .2s; }
+.typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+
+.chat-input-row { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); }
+.chat-input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 13px; color: var(--text); outline: none; }
+.chat-input:focus { border-color: var(--accent); }
+.chat-send { background: var(--accent); border: none; border-radius: 8px; color: #fff; width: 36px; cursor: pointer; font-size: 16px; }
+.chat-send:disabled { opacity: .4; cursor: not-allowed; }
 </style>

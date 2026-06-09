@@ -7,7 +7,8 @@ from .views import (
     InviteUserView, AcceptInvitationView,
     ForgotPasswordView, ResetPasswordConfirmView,
     OrganizationViewSet, UserViewSet, DashboardStatsView,
-    AppPermissionViewSet, RoleViewSet, RecordingViewSet
+    AppPermissionViewSet, RoleViewSet, RecordingViewSet,
+    OnboardingChatView,
 )
 
 router = DefaultRouter()
@@ -29,5 +30,6 @@ urlpatterns = [
     path('auth/forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('auth/reset-password-confirm/', ResetPasswordConfirmView.as_view(), name='reset-password-confirm'),
     path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
+    path('ai/onboarding-chat/', OnboardingChatView.as_view(), name='onboarding-chat'),
     path('', include(router.urls)),
 ]
