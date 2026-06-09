@@ -827,40 +827,28 @@ class OnboardingChatView(APIView):
         if not api_key:
             return Response({'error': 'AI service not configured.'}, status=500)
 
-        # Build prompt in Mistral instruct format
-        prompt = f"<s>[INST] {SYSTEM_PROMPT} [/INST]</s>\n"
-        for msg in history[-6:]:  # keep last 6 messages for context
-            if msg.get('role') == 'user':
-                prompt += f"[INST] {msg['content']} [/INST]"
-            else:
-                prompt += f" {msg['content']}</s>\n"
-        prompt += f"[INST] {user_message} [/INST]"
-
         try:
             resp = http_requests.post(
-                'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3',
-                headers={'Authorization': f'Bearer {api_key}'},
+                'https://router.huggingface.co/together/v1/chat/completions',
+                headers={
+                    'Authorization': f'Bearer {api_key}',
+                    'Content-Type': 'application/json',
+                },
                 json={
-                    'inputs': prompt,
-                    'parameters': {
-                        'max_new_tokens': 200,
-                        'temperature': 0.6,
-                        'return_full_text': False,
-                        'stop': ['[INST]', '</s>'],
-                    },
+                    'model': 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+                    'messages': [
+                        {'role': 'system', 'content': SYSTEM_PROMPT},
+                        *[{'role': m['role'], 'content': m['content']} for m in history[-6:]],
+                        {'role': 'user', 'content': user_message},
+                    ],
+                    'max_tokens': 200,
+                    'temperature': 0.6,
                 },
                 timeout=30,
             )
             resp.raise_for_status()
             result = resp.json()
-
-            if isinstance(result, list) and result:
-                reply = result[0].get('generated_text', '').strip()
-            elif isinstance(result, dict) and 'error' in result:
-                return Response({'error': result['error']}, status=503)
-            else:
-                reply = 'Sorry, I could not generate a response. Please try again.'
-
+            reply = result['choices'][0]['message']['content'].strip()
             return Response({'reply': reply})
 
         except http_requests.exceptions.Timeout:
