@@ -171,6 +171,37 @@
           <div class="modal-title">🎭 Roles — {{ modal.data.username }}</div>
           <button class="modal-close" @click="closeModal">✕</button>
         </div>
+
+        <!-- AI Suggester -->
+        <div class="suggest-box">
+          <div class="suggest-label">✨ AI Role Suggester</div>
+          <div class="suggest-row">
+            <input
+              v-model="jobTitle"
+              class="form-control"
+              placeholder="Enter job title e.g. Sales Manager"
+              @keyup.enter="handleSuggestRoles"
+            />
+            <button class="btn btn-primary btn-sm" @click="handleSuggestRoles" :disabled="suggestLoading || !jobTitle.trim()">
+              {{ suggestLoading ? '…' : 'Suggest' }}
+            </button>
+          </div>
+          <div v-if="suggestReason && suggestions.length > 0" class="suggest-results">
+            <div class="suggest-reason">{{ suggestReason }}</div>
+            <div class="suggest-chips">
+              <span
+                v-for="s in suggestions" :key="s"
+                class="suggest-chip"
+                @click="selectSuggestedRole(s)"
+              >+ {{ s }}</span>
+            </div>
+          </div>
+          <div v-if="suggestReason && suggestions.length === 0 && !suggestError" class="suggest-reason" style="margin-top:8px;">
+            {{ suggestReason }}
+          </div>
+          <div v-if="suggestError" class="suggest-error">{{ suggestError }}</div>
+        </div>
+
         <div style="margin-bottom:12px;">
           <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Assigned Roles</div>
           <div v-if="modal.userRoles.length === 0" style="color:var(--text-muted);font-size:13px;">No roles assigned yet.</div>
@@ -236,9 +267,9 @@
 </template>
 
 <script setup>
-import { reactive, computed, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
-import { inviteUser, getUserRoles, assignRole, removeRole, getUserDirectPermissions, assignPermissionToUser, removePermissionFromUser } from '@/api'
+import { inviteUser, getUserRoles, assignRole, removeRole, getUserDirectPermissions, assignPermissionToUser, removePermissionFromUser, suggestRoles } from '@/api'
 
 const store        = useStore()
 const user         = computed(() => store.getters['auth/user'])
@@ -375,6 +406,7 @@ async function openManageRoles(u) {
   modal.show = true; modal.type = 'manageRoles'
   modal.data = { id: u.id, username: u.username }
   modal.selectedRoleId = null; modal.error = null; modal.userRoles = []
+  jobTitle.value = ''; suggestions.value = []; suggestReason.value = ''; suggestError.value = ''
   const { data } = await getUserRoles(u.id)
   modal.userRoles = data
 }
@@ -437,6 +469,39 @@ async function handleRemovePermission(permId) {
   } finally { modal.loading = false }
 }
 
+// ── AI Role Suggester ─────────────────────────────────────────────────────
+const jobTitle      = ref('')
+const suggestions   = ref([])
+const suggestReason = ref('')
+const suggestLoading = ref(false)
+const suggestError  = ref('')
+
+async function handleSuggestRoles() {
+  if (!jobTitle.value.trim()) return
+  suggestLoading.value = true
+  suggestions.value  = []
+  suggestReason.value = ''
+  suggestError.value  = ''
+  try {
+    const roleNames = availableRoles.value.map(r => r.name)
+    const { data } = await suggestRoles(jobTitle.value.trim(), roleNames)
+    if (data.error) { suggestError.value = data.error; return }
+    suggestions.value  = data.suggestions || []
+    suggestReason.value = data.reason || ''
+    if (suggestions.value.length === 0 && !suggestReason.value)
+      suggestError.value = 'No matching roles found for this job title.'
+  } catch (e) {
+    suggestError.value = e.response?.data?.error || 'AI service unavailable. Please try again.'
+  } finally {
+    suggestLoading.value = false
+  }
+}
+
+function selectSuggestedRole(roleName) {
+  const role = availableRoles.value.find(r => r.name === roleName)
+  if (role) modal.selectedRoleId = role.id
+}
+
 onMounted(async () => {
   await store.dispatch('users/fetch')
   await store.dispatch('roles/fetch')
@@ -455,4 +520,21 @@ onMounted(async () => {
   border: 1px solid rgba(34,197,94,.25); border-radius: 8px;
   padding: 10px 14px; font-size: 13px; margin-bottom: 12px;
 }
+
+.suggest-box {
+  background: rgba(108,99,255,.06); border: 1.5px solid rgba(108,99,255,.2);
+  border-radius: 10px; padding: 14px; margin-bottom: 16px;
+}
+.suggest-label { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.suggest-row { display: flex; gap: 8px; }
+.suggest-row .form-control { flex: 1; }
+.suggest-results { margin-top: 10px; }
+.suggest-reason { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; font-style: italic; }
+.suggest-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.suggest-chip {
+  background: var(--accent); color: #fff; font-size: 12px; font-weight: 600;
+  padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: opacity .15s;
+}
+.suggest-chip:hover { opacity: .85; }
+.suggest-error { font-size: 12px; color: var(--danger); margin-top: 8px; }
 </style>

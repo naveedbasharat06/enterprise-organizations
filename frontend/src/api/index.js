@@ -128,6 +128,9 @@ export const toggleOrgActive    = id => api.post(`/organizations/${id}/toggle_ac
 export const onboardingChat = (message, history) =>
   axios.post(`${BASE}/ai/onboarding-chat/`, { message, history })
 
+export const suggestRoles = (job_title, roles) =>
+  api.post('/ai/suggest-roles/', { job_title, roles })
+
 // ── PAYMENTS (public — no auth token needed) ──────────────────────────────
 const publicApi = axios.create({ baseURL: BASE })
 
