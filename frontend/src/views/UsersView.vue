@@ -235,6 +235,37 @@
           <div class="modal-title">🔑 Permissions — {{ modal.data.username }}</div>
           <button class="modal-close" @click="closeModal">✕</button>
         </div>
+
+        <!-- AI Permission Suggester -->
+        <div class="suggest-box">
+          <div class="suggest-label">🤖 AI Permission Suggester</div>
+          <div class="suggest-row">
+            <input
+              v-model="permJobTitle"
+              class="form-control"
+              placeholder="Enter job title e.g. Finance Manager"
+              @keyup.enter="handleSuggestPermissions"
+            />
+            <button class="btn btn-primary btn-sm" @click="handleSuggestPermissions" :disabled="permSuggestLoading || !permJobTitle.trim()">
+              {{ permSuggestLoading ? '…' : 'Suggest' }}
+            </button>
+          </div>
+          <div v-if="permSuggestions.length > 0" class="suggest-results">
+            <div class="suggest-reason">{{ permSuggestReason }}</div>
+            <div class="suggest-chips">
+              <span
+                v-for="s in permSuggestions" :key="s"
+                class="suggest-chip"
+                @click="selectSuggestedPerm(s)"
+              >+ {{ s }}</span>
+            </div>
+          </div>
+          <div v-if="permSuggestReason && permSuggestions.length === 0 && !permSuggestError" class="suggest-reason" style="margin-top:8px;">
+            {{ permSuggestReason }}
+          </div>
+          <div v-if="permSuggestError" class="suggest-error">{{ permSuggestError }}</div>
+        </div>
+
         <div style="margin-bottom:12px;">
           <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Direct Permissions</div>
           <div v-if="modal.userPerms.length === 0" style="color:var(--text-muted);font-size:13px;">No direct permissions assigned.</div>
@@ -269,7 +300,7 @@
 <script setup>
 import { reactive, ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
-import { inviteUser, getUserRoles, assignRole, removeRole, getUserDirectPermissions, assignPermissionToUser, removePermissionFromUser, suggestRoles } from '@/api'
+import { inviteUser, getUserRoles, assignRole, removeRole, getUserDirectPermissions, assignPermissionToUser, removePermissionFromUser, suggestRoles, suggestPermissions } from '@/api'
 
 const store        = useStore()
 const user         = computed(() => store.getters['auth/user'])
@@ -440,6 +471,7 @@ async function openManagePerms(u) {
   modal.show = true; modal.type = 'managePerms'
   modal.data = { id: u.id, username: u.username }
   modal.selectedPermId = null; modal.error = null; modal.userPerms = []
+  permJobTitle.value = ''; permSuggestions.value = []; permSuggestReason.value = ''; permSuggestError.value = ''
   const { data } = await getUserDirectPermissions(u.id)
   modal.userPerms = data
 }
@@ -500,6 +532,39 @@ async function handleSuggestRoles() {
 function selectSuggestedRole(roleName) {
   const role = availableRoles.value.find(r => r.name === roleName)
   if (role) modal.selectedRoleId = role.id
+}
+
+// ── AI Permission Suggester ───────────────────────────────────────────────────
+const permJobTitle       = ref('')
+const permSuggestions    = ref([])
+const permSuggestReason  = ref('')
+const permSuggestLoading = ref(false)
+const permSuggestError   = ref('')
+
+async function handleSuggestPermissions() {
+  if (!permJobTitle.value.trim()) return
+  permSuggestLoading.value = true
+  permSuggestions.value    = []
+  permSuggestReason.value  = ''
+  permSuggestError.value   = ''
+  try {
+    const permNames = availablePerms.value.map(p => p.name)
+    const { data } = await suggestPermissions(permJobTitle.value.trim(), permNames)
+    if (data.error) { permSuggestError.value = data.error; return }
+    permSuggestions.value   = data.suggestions || []
+    permSuggestReason.value = data.reason || ''
+    if (permSuggestions.value.length === 0 && !permSuggestReason.value)
+      permSuggestError.value = 'No matching permissions found for this job title.'
+  } catch (e) {
+    permSuggestError.value = e.response?.data?.error || 'AI service unavailable. Please try again.'
+  } finally {
+    permSuggestLoading.value = false
+  }
+}
+
+function selectSuggestedPerm(permName) {
+  const perm = availablePerms.value.find(p => p.name === permName)
+  if (perm) modal.selectedPermId = perm.id
 }
 
 onMounted(async () => {

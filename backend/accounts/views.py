@@ -857,6 +857,66 @@ class OnboardingChatView(APIView):
             return Response({'error': str(e)}, status=500)
 
 
+# ─── AI PERMISSION SUGGESTER ─────────────────────────────────────────────────
+
+class SuggestPermissionsView(APIView):
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def post(self, request):
+        import requests as http_requests
+
+        job_title   = request.data.get('job_title', '').strip()
+        perm_names  = request.data.get('permissions', [])
+
+        if not job_title:
+            return Response({'error': 'job_title is required.'}, status=400)
+        if not perm_names:
+            return Response({'suggestions': [], 'reason': 'No permissions exist in this organization yet.'})
+
+        api_key = settings.HUGGINGFACE_API_KEY
+        if not api_key:
+            return Response({'error': 'AI service not configured.'}, status=500)
+
+        perms_list = ', '.join(perm_names)
+        prompt = (
+            f"You are an access control expert. Given a user's job title and a list of available permissions in a system, "
+            f"suggest the most appropriate permissions to assign directly to that user.\n\n"
+            f"Job Title: {job_title}\n"
+            f"Available Permissions: {perms_list}\n\n"
+            f"Reply with ONLY a JSON object in this exact format, nothing else:\n"
+            f'{{"suggestions": ["Permission1", "Permission2"], "reason": "one sentence explaining why"}}\n'
+            f"Only suggest permissions from the Available Permissions list. If none fit, return an empty suggestions array."
+        )
+
+        try:
+            resp = http_requests.post(
+                'https://router.huggingface.co/together/v1/chat/completions',
+                headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                json={
+                    'model': 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+                    'messages': [{'role': 'user', 'content': prompt}],
+                    'max_tokens': 150,
+                    'temperature': 0.3,
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            text = resp.json()['choices'][0]['message']['content'].strip()
+
+            import re, json as _json
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match:
+                result = _json.loads(match.group())
+                valid = [s for s in result.get('suggestions', []) if s in perm_names]
+                return Response({'suggestions': valid, 'reason': result.get('reason', '')})
+            return Response({'suggestions': [], 'reason': 'Could not parse AI response.'})
+
+        except http_requests.exceptions.Timeout:
+            return Response({'error': 'AI service timed out. Please try again.'}, status=503)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
 # ─── AI ROLE SUGGESTER ───────────────────────────────────────────────────────
 
 class SuggestRolesView(APIView):

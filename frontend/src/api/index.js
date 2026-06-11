@@ -131,6 +131,9 @@ export const onboardingChat = (message, history) =>
 export const suggestRoles = (job_title, roles) =>
   api.post('/ai/suggest-roles/', { job_title, roles })
 
+export const suggestPermissions = (job_title, permissions) =>
+  api.post('/ai/suggest-permissions/', { job_title, permissions })
+
 // ── PAYMENTS (public — no auth token needed) ──────────────────────────────
 const publicApi = axios.create({ baseURL: BASE })
 
