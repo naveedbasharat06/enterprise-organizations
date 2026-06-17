@@ -134,3 +134,39 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .toast.success { border-color: var(--accent2); color: var(--accent2); }
 .toast.error   { border-color: var(--danger);  color: var(--danger); }
 @keyframes toastIn { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  /* Typography */
+  .page-title  { font-size: 20px; }
+  .page-sub    { font-size: 13px; }
+  .page-header { margin-bottom: 18px; }
+
+  /* Cards */
+  .card { padding: 16px; border-radius: 10px; }
+
+  /* Stat grid — 2 columns on mobile */
+  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 18px; }
+  .stat-card { padding: 14px; }
+  .stat-value { font-size: 24px; }
+
+  /* Tables — keep horizontal scroll, shrink action area */
+  th, td { padding: 10px 10px; font-size: 12px; }
+  .actions { flex-wrap: nowrap; gap: 4px; }
+  .btn-sm { padding: 5px 8px; font-size: 11px; }
+
+  /* Modals — full width on mobile */
+  .modal {
+    padding: 20px; width: calc(100vw - 24px);
+    border-radius: 12px; max-height: 85vh;
+  }
+  .modal-title { font-size: 16px; }
+  .modal-footer { flex-wrap: wrap; gap: 8px; }
+  .modal-footer .btn { flex: 1; justify-content: center; }
+
+  /* Toast — bottom center on mobile */
+  .toast { left: 16px; right: 16px; bottom: 16px; text-align: center; }
+
+  /* Info box */
+  .info-box { padding: 12px 14px; font-size: 12px; }
+}

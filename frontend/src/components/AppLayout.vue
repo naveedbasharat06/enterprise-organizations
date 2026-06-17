@@ -1,7 +1,18 @@
 <template>
   <div class="layout">
+    <!-- MOBILE TOP BAR -->
+    <div class="mobile-topbar">
+      <button class="hamburger" @click="sidebarOpen = !sidebarOpen">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="mobile-logo">⬡ RoleBase</div>
+    </div>
+
+    <!-- SIDEBAR OVERLAY (mobile) -->
+    <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
+
     <!-- SIDEBAR -->
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ open: sidebarOpen }">
       <div class="sidebar-logo">⬡ RoleBase</div>
 
       <div class="sidebar-user">
@@ -40,51 +51,51 @@
 
       <nav class="sidebar-nav">
         <router-link to="/" custom v-slot="{ navigate, isExactActive }">
-          <div class="nav-item" :class="{ active: isExactActive }" @click="navigate">
+          <div class="nav-item" :class="{ active: isExactActive }" @click="navigate(); sidebarOpen = false">
             <span class="nav-icon">📊</span> Dashboard
           </div>
         </router-link>
 
         <router-link v-if="isAdmin" to="/organizations" custom v-slot="{ navigate, isActive }">
-          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate(); sidebarOpen = false">
             <span class="nav-icon">🏢</span>
             {{ isSuperAdmin ? 'Organizations' : 'My Organization' }}
           </div>
         </router-link>
 
         <router-link v-if="isAdmin" to="/users" custom v-slot="{ navigate, isActive }">
-          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate(); sidebarOpen = false">
             <span class="nav-icon">👥</span>
             {{ isSuperAdmin ? 'All Users' : 'My Members' }}
           </div>
         </router-link>
 
         <router-link v-if="isAdmin" to="/roles" custom v-slot="{ navigate, isActive }">
-          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate(); sidebarOpen = false">
             <span class="nav-icon">🎭</span> Roles
           </div>
         </router-link>
 
         <router-link v-if="isAdmin" to="/permissions" custom v-slot="{ navigate, isActive }">
-          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate(); sidebarOpen = false">
             <span class="nav-icon">🔑</span> Permissions
           </div>
         </router-link>
 
         <router-link to="/my-access" custom v-slot="{ navigate, isActive }">
-          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate(); sidebarOpen = false">
             <span class="nav-icon">🛡️</span> My Access
           </div>
         </router-link>
 
         <router-link v-if="canRecord" to="/recording" custom v-slot="{ navigate, isActive }">
-          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate(); sidebarOpen = false">
             <span class="nav-icon">🎬</span> Recording
           </div>
         </router-link>
 
         <router-link to="/profile" custom v-slot="{ navigate, isActive }">
-          <div class="nav-item" :class="{ active: isActive }" @click="navigate">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate(); sidebarOpen = false">
             <span class="nav-icon">👤</span> My Profile
           </div>
         </router-link>
@@ -123,6 +134,7 @@ const canRecord    = computed(() => {
 })
 
 const switcherOpen = ref(false)
+const sidebarOpen  = ref(false)
 
 function toggleSwitcher() { switcherOpen.value = !switcherOpen.value }
 
@@ -157,10 +169,41 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ── LAYOUT ── */
 .layout { display: flex; min-height: 100vh; }
+
+/* ── MOBILE TOP BAR ── */
+.mobile-topbar {
+  display: none;
+  position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 200;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  align-items: center; padding: 0 16px; gap: 14px;
+}
+.mobile-logo {
+  font-family: 'Space Grotesk', sans-serif; font-size: 18px;
+  font-weight: 700; color: var(--accent);
+}
+.hamburger {
+  background: none; border: none; cursor: pointer;
+  display: flex; flex-direction: column; gap: 5px; padding: 4px;
+}
+.hamburger span {
+  display: block; width: 22px; height: 2px;
+  background: var(--text); border-radius: 2px; transition: all .2s;
+}
+
+/* ── SIDEBAR OVERLAY ── */
+.sidebar-overlay {
+  display: none;
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  backdrop-filter: blur(2px); z-index: 150;
+}
+
+/* ── SIDEBAR ── */
 .sidebar {
   width: 240px; background: var(--surface); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 10;
+  display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 160;
+  transition: transform .25s ease;
 }
 .sidebar-logo {
   padding: 24px 20px 20px; font-family: 'Space Grotesk', sans-serif;
@@ -178,43 +221,32 @@ onMounted(() => {
 }
 .user-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Org Switcher */
+/* ── ORG SWITCHER ── */
 .org-switcher { padding: 10px 14px; border-bottom: 1px solid var(--border); position: relative; }
 .org-switcher-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
 .org-switcher-current {
   display: flex; align-items: center; gap: 8px; padding: 6px 10px;
   border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
-  background: rgba(108,99,255,.08); border: 1px solid var(--border);
-  transition: background .2s;
+  background: rgba(108,99,255,.08); border: 1px solid var(--border); transition: background .2s;
 }
 .org-switcher-current:hover { background: rgba(108,99,255,.16); }
 .org-name-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .org-chevron { font-size: 10px; color: var(--text-muted); }
-.org-dot {
-  width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0;
-}
+.org-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
 .org-dot.active { background: #10b981; }
 .org-dropdown {
   position: absolute; left: 14px; right: 14px; top: calc(100% - 6px);
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0,0,0,.18); z-index: 50; overflow: hidden;
 }
-.org-dropdown-item {
-  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
-  font-size: 13px; cursor: pointer; transition: background .15s;
-}
+.org-dropdown-item { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 13px; cursor: pointer; transition: background .15s; }
 .org-dropdown-item:hover { background: rgba(108,99,255,.08); }
 .org-dropdown-item.active { color: var(--accent); font-weight: 600; }
-.org-active-badge {
-  margin-left: auto; font-size: 10px; font-weight: 700; color: #10b981;
-  background: rgba(16,185,129,.1); padding: 2px 7px; border-radius: 10px;
-}
-.org-dropdown-add {
-  padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--accent);
-  cursor: pointer; border-top: 1px solid var(--border); transition: background .15s;
-}
+.org-active-badge { margin-left: auto; font-size: 10px; font-weight: 700; color: #10b981; background: rgba(16,185,129,.1); padding: 2px 7px; border-radius: 10px; }
+.org-dropdown-add { padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; border-top: 1px solid var(--border); transition: background .15s; }
 .org-dropdown-add:hover { background: rgba(108,99,255,.08); }
 
+/* ── NAV ── */
 .sidebar-nav { flex: 1; padding: 12px; overflow-y: auto; }
 .nav-item {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px;
@@ -226,5 +258,28 @@ onMounted(() => {
 .nav-icon { font-size: 16px; width: 20px; text-align: center; }
 .nav-divider { height: 1px; background: var(--border); margin: 8px 12px; }
 .sidebar-footer { padding: 16px; border-top: 1px solid var(--border); }
+
+/* ── MAIN ── */
 .main { margin-left: 240px; flex: 1; padding: 32px; }
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  .mobile-topbar  { display: flex; }
+  .sidebar-overlay { display: block; }
+
+  .sidebar {
+    transform: translateX(-100%);
+    top: 0;
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  /* Hide desktop logo in sidebar on mobile — topbar has it */
+  .sidebar-logo { display: none; }
+
+  .main {
+    margin-left: 0;
+    padding: 16px;
+    padding-top: 72px; /* clear fixed topbar */
+  }
+}
 </style>
