@@ -134,6 +134,9 @@ export const suggestRoles = (job_title, roles) =>
 export const suggestPermissions = (job_title, permissions) =>
   api.post('/ai/suggest-permissions/', { job_title, permissions })
 
+export const generateRoleDescription = (role_name, permissions) =>
+  api.post('/ai/generate-role-description/', { role_name, permissions })
+
 // ── PAYMENTS (public — no auth token needed) ──────────────────────────────
 const publicApi = axios.create({ baseURL: BASE })
 

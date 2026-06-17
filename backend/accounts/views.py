@@ -977,3 +977,65 @@ class SuggestRolesView(APIView):
             return Response({'error': 'AI service timed out. Please try again.'}, status=503)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+
+# ─── AI ROLE DESCRIPTION GENERATOR ──────────────────────────────────────────
+
+class GenerateRoleDescriptionView(APIView):
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def post(self, request):
+        import requests as http_requests
+
+        role_name  = request.data.get('role_name', '').strip()
+        perm_names = request.data.get('permissions', [])
+
+        if not role_name:
+            return Response({'error': 'role_name is required.'}, status=400)
+
+        api_key = settings.HUGGINGFACE_API_KEY
+        if not api_key:
+            return Response({'error': 'AI service not configured.'}, status=500)
+
+        if perm_names:
+            perms_text = ', '.join(perm_names)
+            prompt = (
+                f"You are an access control expert. Write a concise, plain-English description (1-2 sentences, max 120 characters) "
+                f"for a role named \"{role_name}\" that has these permissions: {perms_text}.\n\n"
+                f"Reply with ONLY a JSON object in this exact format, nothing else:\n"
+                f'{{"description": "your description here"}}'
+            )
+        else:
+            prompt = (
+                f"You are an access control expert. Write a concise, plain-English description (1-2 sentences, max 120 characters) "
+                f"for a role named \"{role_name}\" in a role-based access control system.\n\n"
+                f"Reply with ONLY a JSON object in this exact format, nothing else:\n"
+                f'{{"description": "your description here"}}'
+            )
+
+        try:
+            resp = http_requests.post(
+                'https://router.huggingface.co/together/v1/chat/completions',
+                headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                json={
+                    'model': 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+                    'messages': [{'role': 'user', 'content': prompt}],
+                    'max_tokens': 100,
+                    'temperature': 0.4,
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            text = resp.json()['choices'][0]['message']['content'].strip()
+
+            import re, json as _json
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match:
+                result = _json.loads(match.group())
+                return Response({'description': result.get('description', '').strip()})
+            return Response({'error': 'Could not parse AI response.'}, status=500)
+
+        except http_requests.exceptions.Timeout:
+            return Response({'error': 'AI service timed out. Please try again.'}, status=503)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)

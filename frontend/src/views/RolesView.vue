@@ -59,7 +59,16 @@
         </div>
         <div class="form-group">
           <label>Description</label>
-          <input class="form-control" v-model="modal.data.description" placeholder="Optional description" />
+          <div class="desc-row">
+            <input class="form-control" v-model="modal.data.description" placeholder="Optional — or generate with AI" />
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm gen-btn"
+              :disabled="!modal.data.name || descLoading"
+              @click="handleGenerateDescription"
+            >{{ descLoading ? '…' : '✨ Generate' }}</button>
+          </div>
+          <div v-if="descError" class="gen-error">{{ descError }}</div>
         </div>
         <div v-if="isSuperAdmin" class="form-group">
           <label>Organization <span style="font-size:11px;color:var(--text-muted)">(leave blank for global)</span></label>
@@ -100,7 +109,10 @@
           </div>
         </div>
         <div v-if="modal.error" class="error-msg">{{ modal.error }}</div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="flex-wrap:wrap;gap:8px;">
+          <button class="btn btn-ghost btn-sm" style="margin-right:auto;" :disabled="descLoading" @click="handleAutoDescribeFromPerms">
+            {{ descLoading ? '…' : '✨ Auto-generate Description' }}
+          </button>
           <button class="btn btn-ghost" @click="closeModal">Cancel</button>
           <button class="btn btn-primary" @click="savePermissions" :disabled="modal.loading">
             <span v-if="modal.loading" class="spinner"></span>
@@ -113,8 +125,9 @@
 </template>
 
 <script setup>
-import { reactive, computed, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
+import { generateRoleDescription } from '@/api'
 
 const store          = useStore()
 const roles          = computed(() => store.getters['roles/list'])
@@ -129,16 +142,6 @@ function canManage(r) {
 }
 
 const modal = reactive({ show: false, type: '', data: {}, selectedPerms: [], error: null, loading: false })
-
-function openCreate() {
-  modal.show = true; modal.type = 'create'
-  modal.data = { name: '', description: '', organization: null }; modal.error = null
-}
-function openEdit(r) {
-  modal.show = true; modal.type = 'edit'
-  modal.data = { id: r.id, name: r.name, description: r.description, organization: r.organization }
-  modal.error = null
-}
 function openAssignPerms(r) {
   modal.show = true; modal.type = 'assignPerms'
   modal.data = { id: r.id, name: r.name }
@@ -186,6 +189,61 @@ async function handleDelete(r) {
   }
 }
 
+// ── AI Role Description Generator ────────────────────────────────────────────
+const descLoading = ref(false)
+const descError   = ref('')
+
+function openCreate() {
+  modal.show = true; modal.type = 'create'
+  modal.data = { name: '', description: '', organization: null }
+  modal.error = null; descError.value = ''
+}
+function openEdit(r) {
+  modal.show = true; modal.type = 'edit'
+  modal.data = { id: r.id, name: r.name, description: r.description, organization: r.organization }
+  modal.error = null; descError.value = ''
+}
+
+async function handleGenerateDescription() {
+  if (!modal.data.name) return
+  descLoading.value = true
+  descError.value   = ''
+  try {
+    // For edit mode, include current permissions; for create, just use the name
+    let permNames = []
+    if (modal.type === 'edit') {
+      const role = roles.value.find(r => r.id === modal.data.id)
+      if (role) permNames = role.permissions.map(p => p.name)
+    }
+    const { data } = await generateRoleDescription(modal.data.name, permNames)
+    if (data.error) { descError.value = data.error; return }
+    modal.data.description = data.description
+  } catch (e) {
+    descError.value = e.response?.data?.error || 'AI service unavailable. Please try again.'
+  } finally {
+    descLoading.value = false
+  }
+}
+
+async function handleAutoDescribeFromPerms() {
+  if (!modal.data.name) return
+  descLoading.value = true
+  try {
+    const permNames = modal.selectedPerms
+      .map(id => allPermissions.value.find(p => p.id === id)?.name)
+      .filter(Boolean)
+    const { data } = await generateRoleDescription(modal.data.name, permNames)
+    if (!data.error && data.description) {
+      await store.dispatch('roles/update', { id: modal.data.id, description: data.description })
+      store.dispatch('showToast', { message: 'Description auto-generated and saved!' })
+    }
+  } catch {
+    store.dispatch('showToast', { message: 'Could not generate description', type: 'error' })
+  } finally {
+    descLoading.value = false
+  }
+}
+
 onMounted(async () => {
   await store.dispatch('roles/fetch')
   await store.dispatch('perms/fetch')
@@ -207,4 +265,9 @@ onMounted(async () => {
 }
 .perm-check-item:hover { border-color: var(--accent); }
 .perm-check-item input { margin-top: 2px; accent-color: var(--accent); }
+
+.desc-row { display: flex; gap: 8px; align-items: center; }
+.desc-row .form-control { flex: 1; }
+.gen-btn { white-space: nowrap; }
+.gen-error { font-size: 12px; color: var(--danger); margin-top: 6px; }
 </style>
