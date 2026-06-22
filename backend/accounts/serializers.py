@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Organization, AppPermission, Role, UserRole, UserDirectPermission, UserInvitation, Recording
+from .models import User, Organization, AppPermission, Role, UserRole, UserDirectPermission, UserInvitation, Recording, AccessRequest
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
@@ -207,3 +207,21 @@ class RecordingSerializer(serializers.ModelSerializer):
             request = self.context.get('request')
             return request.build_absolute_uri(obj.video_file.url) if request else obj.video_file.url
         return None
+
+
+class AccessRequestSerializer(serializers.ModelSerializer):
+    username          = serializers.CharField(source='user.username', read_only=True)
+    user_role         = serializers.CharField(source='user.role', read_only=True)
+    role_name         = serializers.CharField(source='role.name', read_only=True)
+    permission_name   = serializers.CharField(source='permission.name', read_only=True)
+    reviewed_by_username = serializers.CharField(source='reviewed_by.username', read_only=True)
+
+    class Meta:
+        model  = AccessRequest
+        fields = [
+            'id', 'username', 'user_role', 'request_type',
+            'role', 'role_name', 'permission', 'permission_name',
+            'justification', 'status', 'ai_verdict', 'ai_reason',
+            'reviewed_by_username', 'reviewed_at', 'created_at',
+        ]
+        read_only_fields = ['status', 'ai_verdict', 'ai_reason', 'reviewed_by', 'reviewed_at', 'created_at']

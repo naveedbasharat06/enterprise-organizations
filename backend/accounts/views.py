@@ -14,7 +14,7 @@ from .throttles import LoginThrottle, PasswordResetThrottle, InviteThrottle
 
 from .models import (
     User, Organization, PasswordResetOTP, AppPermission, Role,
-    UserRole, UserDirectPermission, UserInvitation, Recording
+    UserRole, UserDirectPermission, UserInvitation, Recording, AccessRequest
 )
 from .serializers import (
     UserSerializer, OrganizationSerializer, LoginSerializer,
@@ -22,7 +22,7 @@ from .serializers import (
     ForgotPasswordSerializer, ResetPasswordConfirmSerializer,
     AppPermissionSerializer, RoleSerializer,
     UserRoleSerializer, MyRoleSerializer, UserDirectPermissionSerializer,
-    RecordingSerializer
+    RecordingSerializer, AccessRequestSerializer
 )
 from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin, CanUseRecording
 
@@ -1039,3 +1039,134 @@ class GenerateRoleDescriptionView(APIView):
             return Response({'error': 'AI service timed out. Please try again.'}, status=503)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+
+# ─── ACCESS REQUEST REVIEWER ─────────────────────────────────────────────────
+
+def _ai_review_access_request(request_obj):
+    """Call HuggingFace to get AI verdict on an access request. Updates object in-place."""
+    import requests as http_requests, re, json as _json
+
+    api_key = settings.HUGGINGFACE_API_KEY
+    if not api_key:
+        request_obj.ai_verdict = AccessRequest.VERDICT_NEEDS_REVIEW
+        request_obj.ai_reason  = 'AI service not configured — requires manual review.'
+        return
+
+    user        = request_obj.user
+    target_name = request_obj.role.name if request_obj.role else (request_obj.permission.name if request_obj.permission else '?')
+
+    current_roles = list(UserRole.objects.filter(user=user).values_list('role__name', flat=True))
+    current_perms = list(UserDirectPermission.objects.filter(user=user).values_list('permission__name', flat=True))
+
+    prompt = (
+        f"You are a security reviewer for a role-based access control system.\n\n"
+        f"Evaluate this access request:\n"
+        f"User: {user.username} (System role: {user.role})\n"
+        f"Current roles assigned: {', '.join(current_roles) or 'None'}\n"
+        f"Current direct permissions: {', '.join(current_perms) or 'None'}\n"
+        f"Requesting {request_obj.request_type}: \"{target_name}\"\n"
+        f"Justification: \"{request_obj.justification}\"\n\n"
+        f"Verdict options:\n"
+        f"- auto_approve: Justification is specific, credible, access is appropriate\n"
+        f"- needs_review: May be valid but a human admin should decide\n"
+        f"- deny: Clearly inappropriate, unjustified, or user already has equivalent access\n\n"
+        f"Reply with ONLY this JSON:\n"
+        f'{{"verdict": "auto_approve|needs_review|deny", "reason": "one sentence explanation"}}'
+    )
+
+    try:
+        resp = http_requests.post(
+            'https://router.huggingface.co/together/v1/chat/completions',
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json={
+                'model': 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+                'messages': [{'role': 'user', 'content': prompt}],
+                'max_tokens': 100,
+                'temperature': 0.2,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        text  = resp.json()['choices'][0]['message']['content'].strip()
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            data    = _json.loads(match.group())
+            verdict = data.get('verdict', '').strip()
+            if verdict not in (AccessRequest.VERDICT_AUTO_APPROVE, AccessRequest.VERDICT_NEEDS_REVIEW, AccessRequest.VERDICT_DENY):
+                verdict = AccessRequest.VERDICT_NEEDS_REVIEW
+            request_obj.ai_verdict = verdict
+            request_obj.ai_reason  = data.get('reason', '')
+        else:
+            request_obj.ai_verdict = AccessRequest.VERDICT_NEEDS_REVIEW
+            request_obj.ai_reason  = 'Could not parse AI response — requires manual review.'
+    except Exception as exc:
+        request_obj.ai_verdict = AccessRequest.VERDICT_NEEDS_REVIEW
+        request_obj.ai_reason  = f'AI unavailable — requires manual review. ({exc})'
+
+
+class AccessRequestViewSet(viewsets.ModelViewSet):
+    serializer_class  = AccessRequestSerializer
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_permissions(self):
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        user = self.request.user
+        if _is_platform_admin(user):
+            return AccessRequest.objects.select_related('user', 'role', 'permission', 'reviewed_by').all()
+        if user.role in ('super_admin', 'admin') and user.organization:
+            return AccessRequest.objects.select_related('user', 'role', 'permission', 'reviewed_by').filter(
+                user__organization=user.organization
+            )
+        return AccessRequest.objects.select_related('user', 'role', 'permission', 'reviewed_by').filter(user=user)
+
+    def perform_create(self, serializer):
+        from django.utils import timezone as tz
+        req_obj = serializer.save(user=self.request.user)
+        _ai_review_access_request(req_obj)
+        if req_obj.ai_verdict == AccessRequest.VERDICT_AUTO_APPROVE:
+            req_obj.status      = AccessRequest.STATUS_APPROVED
+            req_obj.reviewed_at = tz.now()
+            if req_obj.request_type == AccessRequest.TYPE_ROLE and req_obj.role:
+                UserRole.objects.get_or_create(user=req_obj.user, role=req_obj.role,
+                                               defaults={'assigned_by': req_obj.user})
+            elif req_obj.request_type == AccessRequest.TYPE_PERMISSION and req_obj.permission:
+                UserDirectPermission.objects.get_or_create(user=req_obj.user, permission=req_obj.permission,
+                                                           defaults={'assigned_by': req_obj.user})
+        req_obj.save()
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        if request.user.role not in ('super_admin', 'admin'):
+            return Response({'error': 'Admins only.'}, status=403)
+        req_obj = self.get_object()
+        if req_obj.status != AccessRequest.STATUS_PENDING:
+            return Response({'error': 'Request already resolved.'}, status=400)
+        from django.utils import timezone as tz
+        req_obj.status      = AccessRequest.STATUS_APPROVED
+        req_obj.reviewed_by = request.user
+        req_obj.reviewed_at = tz.now()
+        req_obj.save()
+        if req_obj.request_type == AccessRequest.TYPE_ROLE and req_obj.role:
+            UserRole.objects.get_or_create(user=req_obj.user, role=req_obj.role,
+                                           defaults={'assigned_by': request.user})
+        elif req_obj.request_type == AccessRequest.TYPE_PERMISSION and req_obj.permission:
+            UserDirectPermission.objects.get_or_create(user=req_obj.user, permission=req_obj.permission,
+                                                       defaults={'assigned_by': request.user})
+        return Response(AccessRequestSerializer(req_obj).data)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        if request.user.role not in ('super_admin', 'admin'):
+            return Response({'error': 'Admins only.'}, status=403)
+        req_obj = self.get_object()
+        if req_obj.status != AccessRequest.STATUS_PENDING:
+            return Response({'error': 'Request already resolved.'}, status=400)
+        from django.utils import timezone as tz
+        req_obj.status      = AccessRequest.STATUS_REJECTED
+        req_obj.reviewed_by = request.user
+        req_obj.reviewed_at = tz.now()
+        req_obj.save()
+        return Response(AccessRequestSerializer(req_obj).data)

@@ -312,6 +312,52 @@ class PendingOnboarding(models.Model):
     is_completed  = models.BooleanField(default=False)
     created_at    = models.DateTimeField(auto_now_add=True)
 
+
+class AccessRequest(models.Model):
+    STATUS_PENDING  = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
+    STATUS_CHOICES  = [
+        (STATUS_PENDING,  'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
+    ]
+
+    VERDICT_AUTO_APPROVE = 'auto_approve'
+    VERDICT_NEEDS_REVIEW = 'needs_review'
+    VERDICT_DENY         = 'deny'
+    VERDICT_CHOICES = [
+        (VERDICT_AUTO_APPROVE, 'Auto Approve'),
+        (VERDICT_NEEDS_REVIEW, 'Needs Review'),
+        (VERDICT_DENY,         'Deny'),
+    ]
+
+    TYPE_ROLE       = 'role'
+    TYPE_PERMISSION = 'permission'
+    TYPE_CHOICES = [
+        (TYPE_ROLE,       'Role'),
+        (TYPE_PERMISSION, 'Permission'),
+    ]
+
+    user          = models.ForeignKey(User, on_delete=models.CASCADE, related_name='access_requests')
+    request_type  = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    role          = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, related_name='access_requests')
+    permission    = models.ForeignKey(AppPermission, on_delete=models.SET_NULL, null=True, blank=True, related_name='access_requests')
+    justification = models.TextField()
+    status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    ai_verdict    = models.CharField(max_length=20, choices=VERDICT_CHOICES, null=True, blank=True)
+    ai_reason     = models.TextField(blank=True)
+    reviewed_by   = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_access_requests')
+    reviewed_at   = models.DateTimeField(null=True, blank=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        target = self.role.name if self.role else (self.permission.name if self.permission else '?')
+        return f"{self.user.username} → {target} ({self.status})"
+
     def is_expired(self):
         return timezone.now() > self.created_at + timedelta(hours=24)
 

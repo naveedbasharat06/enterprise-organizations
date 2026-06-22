@@ -88,6 +88,12 @@
           </div>
         </router-link>
 
+        <router-link to="/access-requests" custom v-slot="{ navigate, isActive }">
+          <div class="nav-item" :class="{ active: isActive }" @click="navigate(); sidebarOpen = false">
+            <span class="nav-icon">📋</span> Access Requests
+          </div>
+        </router-link>
+
         <router-link v-if="canRecord" to="/recording" custom v-slot="{ navigate, isActive }">
           <div class="nav-item" :class="{ active: isActive }" @click="navigate(); sidebarOpen = false">
             <span class="nav-icon">🎬</span> Recording

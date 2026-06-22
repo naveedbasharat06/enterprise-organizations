@@ -9,6 +9,7 @@ from .views import (
     OrganizationViewSet, UserViewSet, DashboardStatsView,
     AppPermissionViewSet, RoleViewSet, RecordingViewSet,
     OnboardingChatView, SuggestRolesView, SuggestPermissionsView, GenerateRoleDescriptionView,
+    AccessRequestViewSet,
 )
 
 router = DefaultRouter()
@@ -17,6 +18,7 @@ router.register(r'users', UserViewSet)
 router.register(r'permissions', AppPermissionViewSet, basename='apppermission')
 router.register(r'roles', RoleViewSet)
 router.register(r'recordings', RecordingViewSet, basename='recording')
+router.register(r'access-requests', AccessRequestViewSet, basename='accessrequest')
 
 urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='login'),

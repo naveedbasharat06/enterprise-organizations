@@ -137,6 +137,12 @@ export const suggestPermissions = (job_title, permissions) =>
 export const generateRoleDescription = (role_name, permissions) =>
   api.post('/ai/generate-role-description/', { role_name, permissions })
 
+// ── ACCESS REQUESTS ───────────────────────────────────────────────────────────
+export const getAccessRequests  = ()       => api.get('/access-requests/')
+export const createAccessRequest = (data)  => api.post('/access-requests/', data)
+export const approveAccessRequest = (id)   => api.post(`/access-requests/${id}/approve/`)
+export const rejectAccessRequest  = (id)   => api.post(`/access-requests/${id}/reject/`)
+
 // ── PAYMENTS (public — no auth token needed) ──────────────────────────────
 const publicApi = axios.create({ baseURL: BASE })
 
