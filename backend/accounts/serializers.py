@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Organization, AppPermission, Role, UserRole, UserDirectPermission, UserInvitation, Recording, AccessRequest
+from .models import User, Organization, AppPermission, Role, UserRole, UserDirectPermission, UserInvitation, Recording, AccessRequest, OffboardingLog
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
@@ -225,3 +225,15 @@ class AccessRequestSerializer(serializers.ModelSerializer):
             'reviewed_by_username', 'reviewed_at', 'created_at',
         ]
         read_only_fields = ['status', 'ai_verdict', 'ai_reason', 'reviewed_by', 'reviewed_at', 'created_at']
+
+
+class OffboardingLogSerializer(serializers.ModelSerializer):
+    offboarded_by_username = serializers.CharField(source='offboarded_by.username', read_only=True)
+
+    class Meta:
+        model  = OffboardingLog
+        fields = [
+            'id', 'username_snapshot', 'email_snapshot',
+            'offboarded_by_username', 'roles_removed', 'permissions_removed',
+            'ai_summary', 'account_deactivated', 'created_at',
+        ]

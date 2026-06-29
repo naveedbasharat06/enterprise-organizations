@@ -137,6 +137,11 @@ export const suggestPermissions = (job_title, permissions) =>
 export const generateRoleDescription = (role_name, permissions) =>
   api.post('/ai/generate-role-description/', { role_name, permissions })
 
+// ── OFFBOARDING ───────────────────────────────────────────────────────────────
+export const offboardPreview    = (id)      => api.get(`/users/${id}/offboard_preview/`)
+export const offboardExecute    = (id, data) => api.post(`/users/${id}/offboard/`, data)
+export const offboardingHistory = ()         => api.get('/users/offboarding_history/')
+
 // ── ACCESS REQUESTS ───────────────────────────────────────────────────────────
 export const getAccessRequests  = ()       => api.get('/access-requests/')
 export const createAccessRequest = (data)  => api.post('/access-requests/', data)

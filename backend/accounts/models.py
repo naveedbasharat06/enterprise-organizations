@@ -313,6 +313,24 @@ class PendingOnboarding(models.Model):
     created_at    = models.DateTimeField(auto_now_add=True)
 
 
+class OffboardingLog(models.Model):
+    user              = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='offboarding_logs')
+    username_snapshot = models.CharField(max_length=150)
+    email_snapshot    = models.CharField(max_length=254, blank=True)
+    offboarded_by     = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='conducted_offboardings')
+    roles_removed     = models.JSONField(default=list)
+    permissions_removed = models.JSONField(default=list)
+    ai_summary        = models.TextField(blank=True)
+    account_deactivated = models.BooleanField(default=False)
+    created_at        = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Offboarding: {self.username_snapshot} by {self.offboarded_by}"
+
+
 class AccessRequest(models.Model):
     STATUS_PENDING  = 'pending'
     STATUS_APPROVED = 'approved'

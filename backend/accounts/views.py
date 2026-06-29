@@ -14,7 +14,7 @@ from .throttles import LoginThrottle, PasswordResetThrottle, InviteThrottle
 
 from .models import (
     User, Organization, PasswordResetOTP, AppPermission, Role,
-    UserRole, UserDirectPermission, UserInvitation, Recording, AccessRequest
+    UserRole, UserDirectPermission, UserInvitation, Recording, AccessRequest, OffboardingLog
 )
 from .serializers import (
     UserSerializer, OrganizationSerializer, LoginSerializer,
@@ -22,7 +22,7 @@ from .serializers import (
     ForgotPasswordSerializer, ResetPasswordConfirmSerializer,
     AppPermissionSerializer, RoleSerializer,
     UserRoleSerializer, MyRoleSerializer, UserDirectPermissionSerializer,
-    RecordingSerializer, AccessRequestSerializer
+    RecordingSerializer, AccessRequestSerializer, OffboardingLogSerializer
 )
 from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin, CanUseRecording
 
@@ -599,6 +599,117 @@ class UserViewSet(viewsets.ModelViewSet):
         target = self.get_object()
         perms = UserDirectPermission.objects.filter(user=target).select_related('permission', 'assigned_by')
         return Response(UserDirectPermissionSerializer(perms, many=True).data)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminOrSuperAdmin])
+    def offboard_preview(self, request, pk=None):
+        """Return all access the user currently holds + an AI-generated risk summary."""
+        import requests as http_requests, re, json as _json
+        target = self.get_object()
+        if target.role == 'super_admin' and not _is_platform_admin(request.user):
+            return Response({'error': 'Cannot offboard a Super Admin.'}, status=403)
+
+        roles = list(UserRole.objects.filter(user=target).select_related('role').values('role__id', 'role__name'))
+        perms = list(UserDirectPermission.objects.filter(user=target).select_related('permission').values('permission__id', 'permission__name', 'permission__codename'))
+
+        role_names = [r['role__name'] for r in roles]
+        perm_names = [p['permission__name'] for p in perms]
+
+        ai_summary = ''
+        api_key = settings.HUGGINGFACE_API_KEY
+        if api_key and (role_names or perm_names):
+            prompt = (
+                f"You are a security analyst writing an offboarding audit note.\n\n"
+                f"Employee being offboarded: {target.username} ({target.email}), System role: {target.role}\n"
+                f"Roles to be removed: {', '.join(role_names) or 'None'}\n"
+                f"Direct permissions to be removed: {', '.join(perm_names) or 'None'}\n\n"
+                f"Write a concise 2-3 sentence security summary for the admin's audit record. "
+                f"Mention any notably high-risk access being removed and confirm the offboarding is complete once executed. "
+                f"Reply with ONLY a JSON object: {{\"summary\": \"your text here\"}}"
+            )
+            try:
+                resp = http_requests.post(
+                    'https://router.huggingface.co/together/v1/chat/completions',
+                    headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                    json={
+                        'model': 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+                        'messages': [{'role': 'user', 'content': prompt}],
+                        'max_tokens': 150, 'temperature': 0.3,
+                    },
+                    timeout=25,
+                )
+                resp.raise_for_status()
+                text  = resp.json()['choices'][0]['message']['content'].strip()
+                match = re.search(r'\{.*\}', text, re.DOTALL)
+                if match:
+                    ai_summary = _json.loads(match.group()).get('summary', '')
+            except Exception:
+                ai_summary = 'AI summary unavailable — offboarding can still proceed.'
+        elif not role_names and not perm_names:
+            ai_summary = f'{target.username} has no roles or direct permissions assigned. Safe to offboard immediately.'
+
+        return Response({
+            'user': {'id': target.id, 'username': target.username, 'email': target.email,
+                     'role': target.role, 'is_active': target.is_active},
+            'roles': roles,
+            'permissions': perms,
+            'ai_summary': ai_summary,
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrSuperAdmin])
+    def offboard(self, request, pk=None):
+        """Remove all roles & permissions. Optionally deactivate the account. Log everything."""
+        target = self.get_object()
+        if target == request.user:
+            return Response({'error': 'You cannot offboard yourself.'}, status=400)
+        if target.role == 'super_admin' and not _is_platform_admin(request.user):
+            return Response({'error': 'Cannot offboard a Super Admin.'}, status=403)
+
+        deactivate = request.data.get('deactivate_account', False)
+
+        roles = list(UserRole.objects.filter(user=target).select_related('role').values('role__name'))
+        perms = list(UserDirectPermission.objects.filter(user=target).select_related('permission').values('permission__name', 'permission__codename'))
+
+        UserRole.objects.filter(user=target).delete()
+        UserDirectPermission.objects.filter(user=target).delete()
+
+        if deactivate:
+            target.is_active = False
+            target.save(update_fields=['is_active'])
+
+        log = OffboardingLog.objects.create(
+            user=target,
+            username_snapshot=target.username,
+            email_snapshot=target.email or '',
+            offboarded_by=request.user,
+            roles_removed=[r['role__name'] for r in roles],
+            permissions_removed=[f"{p['permission__name']} ({p['permission__codename']})" for p in perms],
+            account_deactivated=deactivate,
+        )
+
+        ai_summary = request.data.get('ai_summary', '')
+        if ai_summary:
+            log.ai_summary = ai_summary
+            log.save(update_fields=['ai_summary'])
+
+        return Response({
+            'message': f'{target.username} has been successfully offboarded.',
+            'roles_removed': log.roles_removed,
+            'permissions_removed': log.permissions_removed,
+            'account_deactivated': deactivate,
+            'log_id': log.id,
+        })
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrSuperAdmin])
+    def offboarding_history(self, request):
+        """Return past offboarding logs for this org (or all for platform admin)."""
+        user = request.user
+        if _is_platform_admin(user):
+            logs = OffboardingLog.objects.select_related('user', 'offboarded_by').all()
+        else:
+            logs = OffboardingLog.objects.select_related('user', 'offboarded_by').filter(
+                offboarded_by__organization=user.organization
+            )
+        return Response(OffboardingLogSerializer(logs, many=True).data)
 
 
 def _check_owner(request, instance, label):

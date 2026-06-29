@@ -5,7 +5,10 @@
         <div class="page-title">{{ isSuperAdmin ? 'All Users' : 'My Members' }}</div>
         <div class="page-sub">{{ isSuperAdmin ? 'Manage all users across all organizations' : 'Members of ' + (user.organization_name || 'your organization') }}</div>
       </div>
-      <button v-if="isSuperAdmin" class="btn btn-primary" @click="openInvite">✉️ Invite User</button>
+      <div style="display:flex;gap:8px;">
+        <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="openHistory">📋 Offboarding History</button>
+        <button v-if="isSuperAdmin" class="btn btn-primary" @click="openInvite">✉️ Invite User</button>
+      </div>
     </div>
 
     <div v-if="!isSuperAdmin" class="info-box">
@@ -39,11 +42,13 @@
                     <button class="btn btn-primary btn-sm" @click="openManageRoles(u)">Roles</button>
                     <button class="btn btn-primary btn-sm" @click="openManagePerms(u)">Perms</button>
                     <button v-if="u.id !== user.id" class="btn btn-danger btn-sm" @click="handleDelete(u)">Delete</button>
+                    <button v-if="u.id !== user.id" class="btn btn-warning btn-sm" @click="openOffboard(u)">🚪 Offboard</button>
                   </template>
                   <template v-if="!isSuperAdmin && u.role === 'member' && u.id !== user.id">
                     <button class="btn btn-primary btn-sm" @click="openManageRoles(u)">Roles</button>
                     <button class="btn btn-primary btn-sm" @click="openManagePerms(u)">Perms</button>
                     <button class="btn btn-danger btn-sm" @click="handleRemoveMember(u)">Remove</button>
+                    <button class="btn btn-warning btn-sm" @click="openOffboard(u)">🚪 Offboard</button>
                   </template>
                 </div>
               </td>
@@ -294,17 +299,114 @@
         </div>
       </div>
     </div>
+
+    <!-- Offboarding Modal -->
+    <div v-if="offboard.show" class="modal-overlay" @click.self="offboard.show = false">
+      <div class="modal" style="max-width:520px;">
+        <div class="modal-header">
+          <div class="modal-title">🚪 Offboard — {{ offboard.user?.username }}</div>
+          <button class="modal-close" @click="offboard.show = false">✕</button>
+        </div>
+
+        <div v-if="offboard.loading" style="text-align:center;padding:32px;">
+          <div class="spinner" style="margin:0 auto 12px;width:28px;height:28px;border-width:3px;"></div>
+          <div style="font-size:13px;color:var(--text-muted);">AI is analyzing access… please wait</div>
+        </div>
+
+        <template v-else-if="offboard.preview">
+          <!-- AI Summary -->
+          <div class="ob-summary">
+            <div class="ob-summary-label">🤖 AI Security Summary</div>
+            <div class="ob-summary-text">{{ offboard.preview.ai_summary }}</div>
+          </div>
+
+          <!-- Checklist -->
+          <div class="ob-section">
+            <div class="ob-section-title">Roles to Remove ({{ offboard.preview.roles.length }})</div>
+            <div v-if="offboard.preview.roles.length === 0" class="ob-empty">No roles assigned</div>
+            <div v-for="r in offboard.preview.roles" :key="r.role__id" class="ob-item">
+              <span class="ob-check">✓</span> 🎭 {{ r.role__name }}
+            </div>
+          </div>
+
+          <div class="ob-section">
+            <div class="ob-section-title">Direct Permissions to Remove ({{ offboard.preview.permissions.length }})</div>
+            <div v-if="offboard.preview.permissions.length === 0" class="ob-empty">No direct permissions assigned</div>
+            <div v-for="p in offboard.preview.permissions" :key="p.permission__id" class="ob-item">
+              <span class="ob-check">✓</span> 🔑 {{ p.permission__name }}
+            </div>
+          </div>
+
+          <label class="ob-deactivate-row">
+            <input type="checkbox" v-model="offboard.deactivate" />
+            <span>Also deactivate account (user will not be able to log in)</span>
+          </label>
+
+          <div v-if="offboard.error" class="error-msg">{{ offboard.error }}</div>
+
+          <div class="modal-footer">
+            <button class="btn btn-ghost" @click="offboard.show = false">Cancel</button>
+            <button class="btn btn-danger" @click="handleExecuteOffboard" :disabled="offboard.executing">
+              <span v-if="offboard.executing" class="spinner"></span>
+              <span v-else>🚪 Confirm Offboarding</span>
+            </button>
+          </div>
+        </template>
+
+        <!-- Done state -->
+        <div v-else-if="offboard.done" class="ob-done">
+          <div class="ob-done-icon">✅</div>
+          <div class="ob-done-title">Offboarding Complete</div>
+          <div class="ob-done-sub">{{ offboard.user?.username }} has been successfully offboarded.</div>
+          <div v-if="offboard.result?.roles_removed?.length" style="margin-top:10px;font-size:12px;color:var(--text-muted);">
+            Removed {{ offboard.result.roles_removed.length }} role(s) and {{ offboard.result.permissions_removed.length }} permission(s).
+          </div>
+          <button class="btn btn-ghost btn-sm" style="margin-top:16px;" @click="offboard.show = false">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Offboarding History Modal -->
+    <div v-if="historyModal.show" class="modal-overlay" @click.self="historyModal.show = false">
+      <div class="modal" style="max-width:600px;">
+        <div class="modal-header">
+          <div class="modal-title">📋 Offboarding History</div>
+          <button class="modal-close" @click="historyModal.show = false">✕</button>
+        </div>
+        <div v-if="historyModal.loading" style="text-align:center;padding:24px;"><div class="spinner" style="margin:auto;"></div></div>
+        <div v-else-if="historyModal.logs.length === 0" class="empty-state" style="padding:24px;">No offboardings recorded yet.</div>
+        <div v-else style="max-height:400px;overflow-y:auto;">
+          <div v-for="log in historyModal.logs" :key="log.id" class="ob-log-item">
+            <div class="ob-log-top">
+              <strong>{{ log.username_snapshot }}</strong>
+              <span style="font-size:11px;color:var(--text-muted);">{{ formatDate(log.created_at) }}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">by {{ log.offboarded_by_username }}</div>
+            <div style="font-size:12px;font-style:italic;color:var(--text-muted);margin-bottom:8px;">{{ log.ai_summary }}</div>
+            <div class="ob-log-chips">
+              <span v-for="r in log.roles_removed" :key="r" class="ob-chip role">🎭 {{ r }}</span>
+              <span v-for="p in log.permissions_removed" :key="p" class="ob-chip perm">🔑 {{ p }}</span>
+              <span v-if="log.account_deactivated" class="ob-chip deact">🔒 Deactivated</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="historyModal.show = false">Close</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { reactive, ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
-import { inviteUser, getUserRoles, assignRole, removeRole, getUserDirectPermissions, assignPermissionToUser, removePermissionFromUser, suggestRoles, suggestPermissions } from '@/api'
+import { inviteUser, getUserRoles, assignRole, removeRole, getUserDirectPermissions, assignPermissionToUser, removePermissionFromUser, suggestRoles, suggestPermissions, offboardPreview, offboardExecute, offboardingHistory } from '@/api'
 
 const store        = useStore()
 const user         = computed(() => store.getters['auth/user'])
 const isSuperAdmin = computed(() => store.getters['auth/isSuperAdmin'])
+const isAdmin      = computed(() => store.getters['auth/isAdmin'])
 const users        = computed(() => store.getters['users/list'])
 const unassigned   = computed(() => store.getters['users/unassigned'])
 const orgs         = computed(() => store.getters['orgs/list'])
@@ -567,6 +669,65 @@ function selectSuggestedPerm(permName) {
   if (perm) modal.selectedPermId = perm.id
 }
 
+// ── Offboarding ───────────────────────────────────────────────────────────────
+const offboard = reactive({
+  show: false, loading: false, executing: false,
+  user: null, preview: null, deactivate: false,
+  error: '', done: false, result: null,
+})
+
+const historyModal = reactive({ show: false, loading: false, logs: [] })
+
+async function openOffboard(u) {
+  offboard.show      = true
+  offboard.loading   = true
+  offboard.user      = u
+  offboard.preview   = null
+  offboard.done      = false
+  offboard.result    = null
+  offboard.deactivate = false
+  offboard.error     = ''
+  try {
+    const { data } = await offboardPreview(u.id)
+    offboard.preview = data
+  } catch (e) {
+    offboard.error = e.response?.data?.error || 'Failed to load preview.'
+  } finally {
+    offboard.loading = false
+  }
+}
+
+async function handleExecuteOffboard() {
+  offboard.executing = true
+  offboard.error     = ''
+  try {
+    const { data } = await offboardExecute(offboard.user.id, {
+      deactivate_account: offboard.deactivate,
+      ai_summary: offboard.preview?.ai_summary || '',
+    })
+    offboard.result = data
+    offboard.done   = true
+    offboard.preview = null
+    store.dispatch('showToast', { message: `${offboard.user.username} offboarded successfully` })
+    store.dispatch('users/fetch')
+  } catch (e) {
+    offboard.error = e.response?.data?.error || 'Offboarding failed.'
+  } finally {
+    offboard.executing = false
+  }
+}
+
+async function openHistory() {
+  historyModal.show    = true
+  historyModal.loading = true
+  historyModal.logs    = []
+  try {
+    const { data } = await offboardingHistory()
+    historyModal.logs = data
+  } catch { /* silent */ }
+  finally { historyModal.loading = false }
+}
+
 onMounted(async () => {
   await store.dispatch('users/fetch')
   await store.dispatch('roles/fetch')
@@ -602,4 +763,28 @@ onMounted(async () => {
 }
 .suggest-chip:hover { opacity: .85; }
 .suggest-error { font-size: 12px; color: var(--danger); margin-top: 8px; }
+
+/* ── Offboarding ── */
+.ob-summary { background: rgba(108,99,255,.07); border: 1.5px solid rgba(108,99,255,.2); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
+.ob-summary-label { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.ob-summary-text  { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+.ob-section { margin-bottom: 14px; }
+.ob-section-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+.ob-item  { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--surface2); border-radius: 7px; margin-bottom: 4px; font-size: 13px; }
+.ob-check { color: var(--danger); font-weight: 700; font-size: 14px; }
+.ob-empty { font-size: 12px; color: var(--text-muted); padding: 4px 0; }
+.ob-deactivate-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-muted); margin: 14px 0 6px; cursor: pointer; }
+.ob-deactivate-row input { accent-color: var(--danger); width: 15px; height: 15px; }
+.ob-done { text-align: center; padding: 28px 16px; }
+.ob-done-icon  { font-size: 48px; margin-bottom: 12px; }
+.ob-done-title { font-size: 18px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; margin-bottom: 6px; }
+.ob-done-sub   { font-size: 13px; color: var(--text-muted); }
+.ob-log-item  { border-bottom: 1px solid var(--border); padding: 14px 0; }
+.ob-log-item:last-child { border-bottom: none; }
+.ob-log-top   { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 14px; }
+.ob-log-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.ob-chip      { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 12px; }
+.ob-chip.role  { background: rgba(108,99,255,.12); color: var(--accent); }
+.ob-chip.perm  { background: rgba(0,212,170,.1);   color: var(--accent2); }
+.ob-chip.deact { background: rgba(255,77,109,.12); color: var(--danger); }
 </style>
